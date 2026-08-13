@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pluginMetaData path="bitdreamit-astm-e1381-transmission"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="plugin.xsd">
+    <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
+    <author>Bit Dream IT</author>
+    <pluginVersion>1.0.0</pluginVersion>
+    <mirthVersion>4.x</mirthVersion>
+    <url>https://bitdreamit.com</url>
+    <description>ASTM E1381 low-level transmission framing (ENQ/ACK, STX/ETB/ETX checksum, EOT). Transport-agnostic.</description>
+    <serverClasses>
+        <serverClass class="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
+            <library path="bitdreamit-astm-e1381-transmission-server.jar" type="SERVER" />
+        </serverClass>
+    </serverClasses>
+</pluginMetaData>
