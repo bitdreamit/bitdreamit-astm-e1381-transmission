@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transmissionMode>
+    <name>ASTM E1381</name>
+    <description>BitDreamIT ASTM E1381-02 with full state machine, multiple checksum algorithms (SUM_MOD_256/LRC/CRC8/CUSTOM), exponential backoff with jitter, per-phase timeouts, dialect support (LIS02-A/LIS01-A/VENDOR_CUSTOM), keepalive, and protocol packet capture. Open source by Kimi AI.</description>
+    <clientClassName>com.bitdreamit.mirth.labextensions.astme1381transmission.AstmE1381ModeSettingsPanel</clientClassName>
+    <serverClassName>com.bitdreamit.mirth.labextensions.astme1381transmission.AstmE1381TransmissionMode</serverClassName>
+    <sharedClassName>com.bitdreamit.mirth.labextensions.astme1381transmission.AstmE1381ModeProperties</sharedClassName>
+    <library path="astm-e1381-transmission-shared.jar" type="SHARED"/>
+    <library path="astm-e1381-transmission-server.jar" type="SERVER"/>
+    <library path="astm-e1381-transmission-client.jar" type="CLIENT"/>
+</transmissionMode>
