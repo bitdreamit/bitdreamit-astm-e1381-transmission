@@ -17,7 +17,7 @@ public class ASTME1381TransmissionModeClientPlugin extends TransmissionModeClien
 
     @Override
     public String getPluginPointName() {
-        return ASTME1381Constants.PLUGIN_POINT_NAME;
+        return ASTME1381Constants.PLUGIN_NAME;
     }
 
     @Override

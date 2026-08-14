@@ -1,14 +1,21 @@
-package com.bitdreamit.connect.plugins.transmission.astm.server;
+package com.bitdreamit.connect.plugins.transmission.astm.client;
 
+import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381Frame;
+import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381FrameException;
+import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381RetryMetrics;
 import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381Constants;
+import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties;
 import com.mirth.connect.plugins.TransmissionModeClientProvider;
 import com.mirth.connect.model.transmission.TransmissionModeProperties;
+import org.apache.log4j.Logger;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 import java.util.ArrayList;
 
 public class ASTME1381ClientProvider extends TransmissionModeClientProvider {
+
+    private static final Logger logger = Logger.getLogger(ASTME1381ClientProvider.class);
 
     private ASTME1381TransmissionModeProperties props;
     private final ASTME1381RetryMetrics metrics = new ASTME1381RetryMetrics();
@@ -24,8 +31,17 @@ public class ASTME1381ClientProvider extends TransmissionModeClientProvider {
 
     @Override
     public void send(OutputStream out, InputStream in, byte[] data) throws Exception {
+        if (out == null) throw new IllegalArgumentException("OutputStream is null");
+        if (in == null)  throw new IllegalArgumentException("InputStream is null");
+        if (data == null || data.length == 0) {
+            logger.debug("send() called with empty payload - skipping");
+            return;
+        }
         metrics.reset();
+        metrics.markSessionStart();
         List<byte[]> records = splitIntoRecords(data);
+        logger.info("ASTM E1381 send session starting (" + records.size()
+            + " record(s), " + data.length + " bytes)");
         establishConnection(out, in);
         try {
             int frameNumber = props.getFrameNumberStart();
@@ -35,31 +51,44 @@ public class ASTME1381ClientProvider extends TransmissionModeClientProvider {
         } finally {
             out.write(new byte[]{ASTME1381Constants.EOT});
             out.flush();
+            logger.info("ASTM E1381 send complete (sent=" + metrics.getFramesSent()
+                + ", retries=" + metrics.getFrameRetries()
+                + ", naks=" + metrics.getNakCount() + ")");
         }
     }
 
     private void establishConnection(OutputStream out, InputStream in) throws Exception {
+        long backoffBase = ASTME1381Constants.DEFAULT_ENQ_BACKOFF_BASE_MS;
+        long backoffCap = ASTME1381Constants.DEFAULT_ENQ_BACKOFF_CAP_MS;
         for (int attempt = 1; attempt <= props.getMaxEnqRetries(); attempt++) {
             out.write(new byte[]{ASTME1381Constants.ENQ});
             out.flush();
+            logger.debug("ENQ sent (attempt " + attempt + "/" + props.getMaxEnqRetries() + ")");
             int response = readByteWithTimeout(in, props.getEnqTimeoutMs());
-            if (response == ASTME1381Constants.ACK) return;
+            if (response == ASTME1381Constants.ACK) {
+                logger.info("ASTM E1381 session established after " + attempt + " ENQ attempt(s)");
+                return;
+            }
             if (response == ASTME1381Constants.NAK) {
                 metrics.incrementNak();
                 metrics.incrementEnqRetry();
-                long backoff = Math.min(500L * (1L << (attempt - 1)), 8000L);
+                long backoff = Math.min(backoffBase * (1L << (attempt - 1)), backoffCap);
+                logger.warn("NAK on ENQ attempt " + attempt + ", backing off " + backoff + "ms");
                 Thread.sleep(backoff);
                 continue;
             }
             metrics.incrementEnqRetry();
+            logger.warn("No ACK/NAK to ENQ (response=" + response + ") on attempt " + attempt);
         }
-        throw new ASTME1381FrameException("No ACK to ENQ after " + props.getMaxEnqRetries() + " attempts (metrics: " + metrics.getEnqRetries() + " retries, " + metrics.getNakCount() + " NAKs)");
+        throw new ASTME1381FrameException("No ACK to ENQ after " + props.getMaxEnqRetries()
+            + " attempts (metrics: " + metrics.getEnqRetries() + " retries, "
+            + metrics.getNakCount() + " NAKs)");
     }
 
     private int sendRecordChunked(OutputStream out, InputStream in, byte[] record, int frameNumber) throws Exception {
         int offset = 0;
         while (offset < record.length) {
-            int len = Math.min(ASTME1381Constants.MAX_FRAME_TEXT_LENGTH, record.length - offset);
+            int len = Math.min(props.getMaxFrameContentLength(), record.length - offset);
             boolean isLastChunkOfRecord = (offset + len) >= record.length;
             byte[] chunk = new byte[len];
             System.arraycopy(record, offset, chunk, 0, len);
@@ -78,14 +107,25 @@ public class ASTME1381ClientProvider extends TransmissionModeClientProvider {
         for (int attempt = 1; attempt <= props.getMaxFrameRetries(); attempt++) {
             out.write(frame.encode());
             out.flush();
+            metrics.incrementFramesSent();
             int response = readByteWithTimeout(in, props.getFrameAckTimeoutMs());
-            if (response == ASTME1381Constants.ACK) return;
+            if (response == ASTME1381Constants.ACK) {
+                logger.debug("ACK received for frame #" + frame.getFrameNumber());
+                return;
+            }
             metrics.incrementFrameRetry();
             if (response == ASTME1381Constants.NAK) {
                 metrics.incrementNak();
+                logger.warn("NAK received for frame #" + frame.getFrameNumber()
+                    + " (attempt " + attempt + "/" + props.getMaxFrameRetries() + ")");
+            } else {
+                logger.warn("No ACK/NAK (response=" + response + ") for frame #"
+                    + frame.getFrameNumber() + " (attempt " + attempt + ")");
             }
         }
-        throw new ASTME1381FrameException("Frame " + frame.getFrameNumber() + " not ACKed after " + props.getMaxFrameRetries() + " retries (total frame retries: " + metrics.getFrameRetries() + ")");
+        throw new ASTME1381FrameException("Frame " + frame.getFrameNumber() + " not ACKed after "
+            + props.getMaxFrameRetries() + " retries (total frame retries: "
+            + metrics.getFrameRetries() + ")");
     }
 
     private int readByteWithTimeout(InputStream in, long timeoutMs) throws Exception {

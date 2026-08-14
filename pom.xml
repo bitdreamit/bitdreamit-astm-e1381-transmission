@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.bitdreamit.connect.plugins.transmission.astm</groupId>
+    <artifactId>bitdreamit-astm-e1381-transmission</artifactId>
+    <version>1.1.0</version>
+    <packaging>pom</packaging>
+
+    <name>bitdreamit-astm-e1381-transmission</name>
+    <description>ASTM E1381-02 lower-layer transmission mode plugin for Mirth Connect 4.5+</description>
+    <url>https://bitdreamit.com</url>
+    <inceptionYear>2025</inceptionYear>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <mirth.libs>${user.home}/mirth-libs</mirth.libs>
+        <mirth.version>4.5.2</mirth.version>
+        <junit.version>4.13.2</junit.version>
+        <hamcrest.version>1.3</hamcrest.version>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+    </properties>
+
+    <modules>
+        <module>shared</module>
+        <module>server</module>
+        <module>client</module>
+        <module>test</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Mirth Connect jars are not in Maven Central; declare as system-scoped
+                 dependencies pointing to the local ../mirth-libs/ folder. Override
+                 with -Dmirth.libs=/path/to/mirth-libs on the command line. -->
+            <dependency>
+                <groupId>com.mirth</groupId>
+                <artifactId>mirth-client-core</artifactId>
+                <version>${mirth.version}</version>
+                <scope>system</scope>
+                <systemPath>${mirth.libs}/client/mirth-client-core.jar</systemPath>
+            </dependency>
+            <dependency>
+                <groupId>com.mirth</groupId>
+                <artifactId>mirth-client</artifactId>
+                <version>${mirth.version}</version>
+                <scope>system</scope>
+                <systemPath>${mirth.libs}/client/mirth-client.jar</systemPath>
+            </dependency>
+            <dependency>
+                <groupId>com.mirth</groupId>
+                <artifactId>mirth-server</artifactId>
+                <version>${mirth.version}</version>
+                <scope>system</scope>
+                <systemPath>${mirth.libs}/server/mirth-server.jar</systemPath>
+            </dependency>
+            <dependency>
+                <groupId>com.mirth</groupId>
+                <artifactId>donkey-server</artifactId>
+                <version>${mirth.version}</version>
+                <scope>system</scope>
+                <systemPath>${mirth.libs}/server/donkey-server.jar</systemPath>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-1.2-api</artifactId>
+                <version>2.22.1</version>
+            </dependency>
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.hamcrest</groupId>
+                <artifactId>hamcrest-core</artifactId>
+                <version>${hamcrest.version}</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.11.0</version>
+                    <configuration>
+                        <source>${maven.compiler.source}</source>
+                        <target>${maven.compiler.target}</target>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>3.3.0</version>
+                </plugin>
+                <plugin>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.1.2</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

@@ -1,4 +1,4 @@
-package com.bitdreamit.mirth.astm.e1381.server;
+package com.bitdreamit.connect.plugins.transmission.astm.server;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -8,7 +8,8 @@ import java.util.Arrays;
 
 import org.apache.log4j.Logger;
 
-import com.bitdreamit.mirth.astm.e1381.shared.ASTME1381Constants;
+import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381Constants;
+import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties;
 import com.mirth.connect.donkey.server.message.StreamHandler;
 import com.mirth.connect.donkey.server.message.batch.BatchStreamReader;
 
@@ -346,7 +347,7 @@ public class ASTME1381StreamHandler extends StreamHandler {
         frame.write(props.getStartOfFrameByte());
         // Re-add sequence number if it was stripped
         // For validation we need the raw frame - simplified here
-        frame.write(payload);
+        frame.write(payload, 0, payload.length);
         frame.write(endByte);
 
         byte[] calculated = calculateChecksum(frame.toByteArray());

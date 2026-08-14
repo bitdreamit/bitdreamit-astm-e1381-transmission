@@ -1,7 +1,7 @@
 package com.bitdreamit.connect.plugins.transmission.astm.test;
 
-import com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381Frame;
-import com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381FrameException;
+import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381Frame;
+import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381FrameException;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -9,7 +9,7 @@ public class ASTME1381FrameTest {
 
     @Test
     public void testEncodeDecodeRoundTrip() throws Exception {
-        String text = "H|\^&|||Analyzer^1.0|||||HOST||P|1|20260813120000";
+        String text = "H|\\^&|||Analyzer^1.0|||||HOST||P|1|20260813120000";
         byte[] textBytes = text.getBytes();
         for (int fn = 0; fn <= 7; fn++) {
             for (boolean finalFrame : new boolean[]{true, false}) {

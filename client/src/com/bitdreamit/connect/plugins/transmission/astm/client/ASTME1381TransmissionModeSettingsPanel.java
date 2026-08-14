@@ -1,4 +1,4 @@
-package com.bitdreamit.mirth.astm.e1381.client;
+package com.bitdreamit.connect.plugins.transmission.astm.client;
 
 import java.awt.Color;
 import java.util.prefs.Preferences;

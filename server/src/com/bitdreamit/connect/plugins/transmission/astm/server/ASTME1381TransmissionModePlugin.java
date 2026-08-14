@@ -1,9 +1,10 @@
-package com.bitdreamit.mirth.astm.e1381.server;
+package com.bitdreamit.connect.plugins.transmission.astm.server;
 
 import java.io.InputStream;
 import java.io.OutputStream;
 
-import com.bitdreamit.mirth.astm.e1381.shared.ASTME1381Constants;
+import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381Constants;
+import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties;
 import com.mirth.connect.donkey.server.message.StreamHandler;
 import com.mirth.connect.donkey.server.message.batch.BatchStreamReader;
 import com.mirth.connect.model.transmission.TransmissionModeProperties;

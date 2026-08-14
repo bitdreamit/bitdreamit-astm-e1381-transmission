@@ -7,5 +7,7 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <!-- shared now depends on mirth-client-core for TransmissionModeProperties -->
+    <orderEntry type="library" name="mirth-client" level="project" />
   </component>
 </module>

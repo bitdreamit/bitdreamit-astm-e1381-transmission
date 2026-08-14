@@ -1,0 +1,148 @@
+============================================================
+bitdreamit-astm-e1381-transmission
+Production-hardened release v1.1.0
+Built: 2026-08-14
+============================================================
+
+This is a production-ready rebuild of the original
+https://github.com/bitdreamit/bitdreamit-astm-e1381-transmission
+repository, which shipped in v1.0.0 with multiple inconsistencies
+that prevented compilation and correct deployment.
+
+WHAT WAS FIXED (summary - see CHANGELOG.md for full details)
+------------------------------------------------------------
+1. Package / directory mismatch
+   - Original: package declarations did not match file paths in 5
+     files (Constants, StreamHandler, TransmissionModePlugin,
+     TransmissionModeProperties, ClientPlugin, SettingsPanel).
+   - Fix: unified on the canonical package
+     com.bitdreamit.connect.plugins.transmission.astm.* which
+     matches the directory layout.
+
+2. Orphan / duplicate classes
+   - Original: ASTME1381ClientProvider.java was in the server/
+     folder but extends TransmissionModeClientProvider (client side).
+   - Original: ASTME1381ClientPlugin.java was an orphan duplicate
+     that extended the wrong base class (ClientPlugin instead of
+     TransmissionModeClientPlugin).
+   - Fix: moved ASTME1381ClientProvider to client/; removed the
+     orphan ASTME1381ClientPlugin.java.
+
+3. Missing API surface
+   - Original: ASTME1381ClientProvider referenced props.getFrameNumberStart(),
+     props.getMaxEnqRetries(), props.getEnqTimeoutMs(), props.getFrameAckTimeoutMs(),
+     props.getMaxFrameRetries(), and ASTME1381Constants.MAX_FRAME_TEXT_LENGTH -
+     none of which existed.
+   - Original: ASTME1381TransmissionModeClientPlugin referenced
+     ASTME1381Constants.PLUGIN_POINT_NAME which did not exist.
+   - Fix: added all missing constants and properties; PLUGIN_POINT_NAME
+     is now an alias for PLUGIN_NAME for backwards compatibility.
+
+4. Architecture: Properties / Frame classes were in server module
+   - Original: ASTME1381TransmissionModeProperties was in server/
+     but used by client/ code. The client.jar (which only bundles
+     shared + client) was missing the Properties class.
+   - Same issue with ASTME1381Frame, ASTME1381FrameException,
+     ASTME1381RetryMetrics.
+   - Fix: moved all four to the shared/ module so they are bundled
+     in BOTH server.jar and client.jar.
+
+5. Inconsistent metadata files
+   - Original: transmissionmode.xml referenced non-existent class
+     names (com.bitdreamit.mirth.labextensions.astme1381transmission.*)
+     and jar names (astm-e1381-transmission-*.jar without the "bitdreamit-"
+     prefix). The plugin.xml files referenced canonical names but
+     did not register the new Server/Client providers.
+   - Fix: transmissionmode.xml now references canonical class names
+     and the jar names produced by build.sh. Both plugin.xml files
+     now register ASTME1381ServerProvider and ASTME1381ClientProvider.
+
+6. build.sh inconsistencies
+   - Original: produced only 2 jars (server + client) but
+     transmissionmode.xml expected 3 (shared + server + client).
+   - Original: README referenced mirth-core.jar but build.sh used
+     mirth-server.jar / mirth-client-core.jar.
+   - Original: no test target.
+   - Fix: build.sh now produces 3 jars (shared + server + client),
+     supports `clean`/`build`/`test`/`rebuild` subcommands, honors
+     MIRTH_LIBS_DIR env var.
+
+7. Latent compile errors
+   - Original: ASTME1381StreamHandler.validateChecksum() called
+     ByteArrayOutputStream.write(byte[]) which throws IOException
+     but the method did not declare it. The original code would
+     not compile.
+   - Original: ASTME1381FrameTest used an invalid escape sequence
+     "H|\^&" which would not compile.
+   - Fix: use ByteArrayOutputStream.write(byte[], int, int)
+     (overridden, does not throw); fixed the test's escape sequence.
+
+8. Production hardening (NEW in 1.1.0)
+   - Bounded ENQ establishment timeout (no infinite wait).
+   - Cap on consecutive NAKs to prevent spin loops.
+   - Thread-safe RetryMetrics with sent/received/retries/naks counters.
+   - Per-phase configurable timeouts (establishment, frame, response, ENQ, frame ACK).
+   - Log4j structured logging at INFO/WARN/ERROR for every state transition.
+   - Null-safe property parsing (never throws).
+   - Defensive copies of frame payloads to prevent aliasing bugs.
+   - Comprehensive JUnit coverage (30 tests across 4 test classes).
+
+9. New production artifacts
+   - README.md (rewritten, comprehensive)
+   - CHANGELOG.md (full release history)
+   - CONTRIBUTING.md (developer guide)
+   - PRODUCTION.md (deployment + monitoring guide)
+   - LICENSE (Apache 2.0)
+   - pom.xml (optional Maven build)
+   - .github/workflows/ci.yml (CI workflow)
+   - Dockerfile (containerised builds/tests)
+
+VERIFICATION
+------------------------------------------------------------
+- All package declarations verified to match directory structure.
+- No stale references to the old com.bitdreamit.mirth.astm.* package.
+- Shared module compiles cleanly under JDK 17 (no external deps).
+- Full project (shared + server + client + tests) compiles cleanly
+  against Mirth Connect 4.5+ jars (verified with stub jars).
+- All 30 JUnit tests pass:
+    ASTME1381FrameTest            (5 tests)
+    ASTME1381RetryMetricsTest      (6 tests, including concurrency)
+    ASTME1381FrameCorruptionTest   (11 tests)
+    ASTME1381RoundTripTest         (8 tests)
+- ./build.sh test passes end-to-end.
+
+BUILD
+------------------------------------------------------------
+1. Extract this zip to your workspace:
+     unzip bitdreamit-astm-e1381-transmission.zip
+     cd bitdreamit-astm-e1381-transmission
+
+2. Provide Mirth Connect 4.5+ jars at ../mirth-libs/:
+     mirth-libs/server/mirth-server.jar
+     mirth-libs/server/donkey-server.jar
+     mirth-libs/client/mirth-client.jar
+     mirth-libs/client/mirth-client-core.jar
+     mirth-libs/test/junit-4.13.2.jar
+     mirth-libs/test/hamcrest-core-1.3.jar
+
+3. Build:
+     cd distribution && ./build.sh
+
+   Output jars in ../out/:
+     bitdreamit-astm-e1381-transmission-shared.jar
+     bitdreamit-astm-e1381-transmission-server.jar
+     bitdreamit-astm-e1381-transmission-client.jar
+
+4. Deploy to Mirth (see PRODUCTION.md for full details):
+     cp out/*.jar $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
+     cp transmissionmode.xml $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
+     cp server/resources/plugin.xml $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/server-plugin.xml
+     cp client/resources/plugin.xml $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/client-plugin.xml
+     sudo systemctl restart mirth-connect
+
+REFERENCES
+------------------------------------------------------------
+- Mirth Connect ASTM E1381 transmission mode docs:
+  https://docs.nextgen.com/en-US/mirthc2ae-connect-user-guide-3299192/astm-e1381-transmission-mode-12617
+- Original upstream repo:
+  https://github.com/bitdreamit/bitdreamit-astm-e1381-transmission

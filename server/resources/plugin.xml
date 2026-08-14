@@ -4,12 +4,20 @@
     xsi:noNamespaceSchemaLocation="plugin.xsd">
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.0.0</pluginVersion>
+    <pluginVersion>1.1.0</pluginVersion>
     <mirthVersion>4.x</mirthVersion>
     <url>https://bitdreamit.com</url>
-    <description>ASTM E1381 low-level transmission framing (ENQ/ACK, STX/ETB/ETX checksum, EOT). Transport-agnostic.</description>
+    <description>ASTM E1381-02 lower-layer transmission framing protocol.
+Implements ENQ/ACK/NAK establishment, STX/ETB/ETX framing with Add-Mod-256
+checksum, 0-7 frame sequencing with strict/lenient modes, per-frame retry
+with exponential backoff, per-phase timeouts (establishment, frame, response),
+and a per-session RetryMetrics counter for operational dashboards.
+Transport-agnostic: works with TCP Listener / TCP Sender and Serial Connector.</description>
     <serverClasses>
         <serverClass class="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
+            <library path="bitdreamit-astm-e1381-transmission-server.jar" type="SERVER" />
+        </serverClass>
+        <serverClass class="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381ServerProvider">
             <library path="bitdreamit-astm-e1381-transmission-server.jar" type="SERVER" />
         </serverClass>
     </serverClasses>
