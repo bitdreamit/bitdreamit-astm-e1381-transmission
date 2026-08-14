@@ -2,7 +2,7 @@
   <library name="mirth-client">
     <CLASSES>
       <root url="jar://$PROJECT_DIR$/../mirth-libs/client/mirth-client.jar!/" />
-      <root url="jar://$PROJECT_DIR$/../mirth-libs/client/mirth-core.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../mirth-libs/client/mirth-client-core.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

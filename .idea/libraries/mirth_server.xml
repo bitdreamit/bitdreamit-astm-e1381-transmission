@@ -3,7 +3,7 @@
     <CLASSES>
       <root url="jar://$PROJECT_DIR$/../mirth-libs/server/mirth-server.jar!/" />
       <root url="jar://$PROJECT_DIR$/../mirth-libs/server/donkey-server.jar!/" />
-      <root url="jar://$PROJECT_DIR$/../mirth-libs/server/mirth-core.jar!/" />
+      <root url="jar://$PROJECT_DIR$/../mirth-libs/server/mirth-client-core.jar!/" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />
