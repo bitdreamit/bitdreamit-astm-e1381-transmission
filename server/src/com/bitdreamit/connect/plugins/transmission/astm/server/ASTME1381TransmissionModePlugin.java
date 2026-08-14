@@ -1,40 +1,28 @@
-package com.bitdreamit.connect.plugins.transmission.astm.server;
+package com.bitdreamit.mirth.astm.e1381.server;
 
-import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381Constants;
-import com.mirth.connect.model.ExtensionPermission;
-import com.mirth.connect.plugins.TransmissionModePlugin;
-import com.mirth.connect.plugins.TransmissionModeClientProvider;
-import com.mirth.connect.plugins.TransmissionModeServerProvider;
+import java.io.InputStream;
+import java.io.OutputStream;
+
+import com.bitdreamit.mirth.astm.e1381.shared.ASTME1381Constants;
+import com.mirth.connect.donkey.server.message.StreamHandler;
+import com.mirth.connect.donkey.server.message.batch.BatchStreamReader;
 import com.mirth.connect.model.transmission.TransmissionModeProperties;
-import java.util.Map;
-import java.util.Properties;
+import com.mirth.connect.plugins.TransmissionModePlugin;
 
+/**
+ * ASTM E1381-95 Transmission Mode Server Plugin
+ * Registers the ASTM framing protocol with Mirth Connect TCP/Serial connectors.
+ */
 public class ASTME1381TransmissionModePlugin extends TransmissionModePlugin {
 
     @Override
-    public void init(Properties properties) {}
-
-    @Override
-    public void update(Properties properties) {}
-
-    @Override
-    public Properties getDefaultProperties() {
-        return new Properties();
-    }
-
-    @Override
-    public ExtensionPermission[] getExtensionPermissions() {
-        return new ExtensionPermission[0];
-    }
-
-    @Override
-    public Map<String, Object> getObjectsForSwaggerExamples() {
-        return null;
-    }
-
-    @Override
     public String getPluginPointName() {
-        return ASTME1381Constants.PLUGIN_POINT_NAME;
+        return ASTME1381Constants.PLUGIN_NAME;
+    }
+
+    @Override
+    public String getPluginPointDescription() {
+        return "ASTM E1381-95 Lower Layer Protocol with frame sequencing, LRC validation, and bidirectional handshaking.";
     }
 
     @Override
@@ -44,13 +32,11 @@ public class ASTME1381TransmissionModePlugin extends TransmissionModePlugin {
     public void stop() {}
 
     @Override
-    public TransmissionModeClientProvider getTransmissionModeClientProvider() {
-        return new ASTME1381ClientProvider();
-    }
-
-    @Override
-    public TransmissionModeServerProvider getTransmissionModeServerProvider() {
-        return new ASTME1381ServerProvider();
+    public StreamHandler getStreamHandler(InputStream inputStream, OutputStream outputStream,
+                                           BatchStreamReader batchStreamReader,
+                                           TransmissionModeProperties properties) {
+        ASTME1381TransmissionModeProperties props = (ASTME1381TransmissionModeProperties) properties;
+        return new ASTME1381StreamHandler(inputStream, outputStream, batchStreamReader, props);
     }
 
     @Override
