@@ -5,6 +5,237 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.3] - 2026-08-15 - "Fix wrong base class names (TransmissionModePlugin vs TransmissionModeProvider)"
+
+This patch fixes the wrong-base-class compile errors that 1.1.2 left
+behind on the server and client modules:
+
+```
+ASTME1381ServerProvider.java:8:33
+java: cannot find symbol
+  symbol:   class TransmissionModeServerProvider
+ASTME1381TransmissionModePlugin.java:11:33
+java: cannot find symbol
+  symbol:   class TransmissionModePlugin
+ASTME1381TransmissionModeClientPlugin.java:5:33
+java: cannot find symbol
+  symbol:   class TransmissionModeClientPlugin
+ASTME1381ClientProvider.java:16:8
+java: ... does not override abstract method getSampleValue()
+       in com.mirth.connect.plugins.TransmissionModeClientProvider
+```
+
+### Root cause
+In Mirth Connect 4.5+ the two abstract base classes for transmission-mode
+plugins have **similar but opposite** names to what the original plugin
+code assumed:
+
+| Side | Original code assumed | Actual Mirth 4.5+ class |
+|------|----------------------|--------------------------|
+| Server | `TransmissionModeServerProvider` (does NOT exist) | `com.mirth.connect.plugins.TransmissionModeProvider` |
+| Server | `TransmissionModePlugin` (exists, but is the CLIENT-side class!) | `TransmissionModeProvider` |
+| Client | `TransmissionModeClientPlugin` (does NOT exist) | `com.mirth.connect.plugins.TransmissionModePlugin` |
+
+The user-supplied decompiled signatures from Mirth 4.5+ are:
+
+```java
+// CLIENT-side abstract class (despite the name, NOT server-side)
+public abstract class TransmissionModePlugin extends ClientPlugin {
+    public TransmissionModePlugin(String name) { super(name); }
+    public abstract TransmissionModeClientProvider createProvider();
+    public void start() {}
+    public void stop() {}
+    public void reset() {}
+}
+
+// SERVER-side abstract class
+public abstract class TransmissionModeProvider implements ServerPlugin {
+    public abstract StreamHandler getStreamHandler(
+        InputStream in, OutputStream out,
+        BatchStreamReader batchStreamReader,
+        TransmissionModeProperties properties);
+    public void start() {}
+    public void stop() {}
+}
+```
+
+The original plugin author mixed up which name was the client-side class
+and which was the server-side class, so every `extends` clause in the
+server and client modules was wrong.
+
+### Fixed
+- `server/ASTME1381TransmissionModePlugin.java`:
+  - Changed `extends TransmissionModePlugin` -> `extends TransmissionModeProvider`.
+  - Removed `@Override` from `getPluginPointName()`, `getPluginPointDescription()`,
+    `getDefaultProperties()` (not declared on `TransmissionModeProvider`;
+    may be on `ServerPlugin`/`Plugin` in some Mirth versions, but keeping
+    the annotation breaks the build on versions where they aren't).
+  - Kept `@Override` on `getStreamHandler(...)`, `start()`, `stop()`
+    (these ARE on `TransmissionModeProvider`).
+  - Added a comprehensive class-level javadoc explaining the API surface
+    and the historical confusion.
+- `server/ASTME1381ServerProvider.java`: **DELETED**.
+  This class extended a non-existent `TransmissionModeServerProvider`
+  base class and provided a `receive(InputStream, OutputStream)` method
+  that does not fit the Mirth `StreamHandler`-based architecture. The
+  actual receive flow already lives in `ASTME1381StreamHandler.read()`.
+  Removed the corresponding `<serverClass>` entry from
+  `server/resources/plugin.xml`.
+- `client/ASTME1381TransmissionModeClientPlugin.java`:
+  - Changed `extends TransmissionModeClientPlugin` -> `extends TransmissionModePlugin`.
+  - Changed import accordingly.
+  - Added required `@Override createProvider()` returning a new
+    `ASTME1381ClientProvider`.
+  - Removed `@Override` from `getSettingsPanel()` and `getPluginPointName()`
+    (not declared on `TransmissionModePlugin` directly; may be on
+    `ClientPlugin`/`Plugin` in some Mirth versions, but kept un-annotated
+    for build tolerance).
+  - Removed the redundant `start()`, `stop()`, `reset()` overrides
+    entirely - `TransmissionModePlugin` already provides default empty
+    implementations of these methods, so the overrides added nothing
+    but noise.
+- `client/ASTME1381ClientProvider.java`:
+  - Added required `@Override getSampleValue()` returning a minimal
+    ASTM E1381-02 sample payload (Header/Patient/Order/Result/Terminator
+    records) for Mirth's "Send Test Message" feature.
+  - Kept `@Override` on `setProperties(...)` and `send(...)` - these
+    are real overrides of `TransmissionModeClientProvider` abstract
+    methods.
+- `server/resources/plugin.xml`: removed the `<serverClass>` entry for
+  the deleted `ASTME1381ServerProvider`. Bumped `pluginVersion` to
+  `1.1.3`. Added a comment explaining the API note about
+  `TransmissionModeProvider` vs the non-existent
+  `TransmissionModeServerProvider`.
+- `client/resources/plugin.xml`: bumped `pluginVersion` to `1.1.3`
+  to keep the two plugin.xml files in sync.
+
+### Verification
+After this patch, the only `@Override` annotations across the server
+and client modules are on methods that genuinely exist on the parent
+classes:
+
+- `ASTME1381TransmissionModePlugin`: `getStreamHandler`, `start`, `stop`
+- `ASTME1381TransmissionModeClientPlugin`: `createProvider`
+- `ASTME1381ClientProvider`: `getSampleValue`, `setProperties`, `send`
+- `ASTME1381StreamHandler` (unchanged): `read`, `write`, `commit`
+
+## [1.1.2] - 2026-08-15 - "Remove phantom @Override on getPropertyDescriptors / setProperties"
+
+This patch fixes the two remaining compile errors that 1.1.1 left
+behind on `ASTME1381TransmissionModeProperties`:
+
+```
+ASTME1381TransmissionModeProperties.java:91:5
+java: method does not override or implement a method from a supertype
+ASTME1381TransmissionModeProperties.java:134:5
+java: method does not override or implement a method from a supertype
+```
+
+### Root cause
+The Mirth Connect 4.5+ base class `TransmissionModeProperties`
+(in `mirth-client-core.jar`) only declares the two `Purgable`
+methods: `getPluginPointName()` and `getPurgedProperties()`. It does
+NOT declare `getPropertyDescriptors()` or `setProperties(Map)` - those
+methods belong to the unrelated `PropertyVerifier` interface used by
+**DataType** properties (HL7V2, XML, ...), not by transmission-mode
+properties. The original plugin author copy-pasted these methods from
+a data type plugin and annotated them with `@Override`, but the
+annotations were always wrong - they just didn't surface as errors
+until the parent class actually loaded (which required the
+`donkey-server.jar` fix from 1.1.1).
+
+### Fixed
+- `ASTME1381TransmissionModeProperties.java`:
+  - Removed the `@Override` annotation from `getPropertyDescriptors()`.
+    Added a detailed javadoc explaining why it's not an override and
+    why the method is retained (settings panel uses it as a single
+    source of truth for field metadata; external tooling may call it).
+  - Removed the `@Override` annotation from `setProperties(...)`.
+    Same javadoc treatment. Mirth's channel XML serializer populates
+    the bean via the individual field setters (e.g. `setEnquiryByte(int)`)
+    using XStream, not via this bulk loader.
+  - The `@Override` on `getPurgedProperties()` is correct (it overrides
+    `Purgable.getPurgedProperties()`) and is left in place.
+  - Expanded the class-level javadoc with an "API surface note (Mirth
+    4.5+)" paragraph documenting why `getPropertyDescriptors()` and
+    `setProperties()` are not `@Override`.
+
+### Verification
+After this patch, the only `@Override` annotation in
+`ASTME1381TransmissionModeProperties.java` is on
+`getPurgedProperties()` - which IS a real override of the `Purgable`
+interface method.
+
+## [1.1.1] - 2026-08-15 - "Purgable classpath fix"
+
+This patch release fixes the cascading compile errors that users see when
+their `mirth-client-core.jar` is present (which contains
+`TransmissionModeProperties`) but their `donkey-server.jar` is missing
+(which contains `com.mirth.connect.donkey.util.purge.Purgable`). The
+parent class `TransmissionModeProperties` implements `Purgable`, so
+without `donkey-server.jar` on the compile classpath, every `@Override`
+and inherited-method call in `ASTME1381TransmissionModeProperties`
+cascades into errors.
+
+### Fixed
+- `shared/shared.iml`: now declares the `mirth-server` project library
+  (which bundles `donkey-server.jar`) in addition to `mirth-client`.
+  Previously, the `shared` module only depended on `mirth-client`, which
+  does not include `donkey-server.jar`.
+- `client/client.iml`, `test/test.iml`: same fix - they now also declare
+  `mirth-server` so `Purgable` is resolvable when the `shared` module
+  is on their compile classpath.
+- `ASTME1381TransmissionModeProperties.java`:
+  - `setProperties()` signature changed from raw `Map` to the
+    parameterized `Map<String, DataTypePropertyDescriptor>` to match
+    the actual Mirth 4.5+ parent signature (removes the unchecked
+    conversion warning and is the proper override).
+  - `setProperties()` body now extracts values via
+    `DataTypePropertyDescriptor.getValue()` instead of calling
+    `toString()` on the descriptor object. The original code had a
+    latent bug: it always passed a `DataTypePropertyDescriptor` instance
+    to `parseHex(Object)` / `parseInt(Object)` / `toBoolean(Object)`,
+    which would invoke the default `Object.toString()` and yield a
+    non-parseable string like "DataTypePropertyDescriptor@1b6d3586".
+    The fix uses `getValue()` which returns the actual configured
+    value (String / Integer / Boolean).
+  - `getPurgedProperties()` no longer calls the inherited
+    `getPluginPointName()` (which lives on `Purgable`). It now uses
+    `ASTME1381Constants.PLUGIN_NAME` directly, which is identical
+    (the constructor passes that same constant to `super(...)`).
+    This makes the source more tolerant of partial Mirth jars.
+  - Added a `DataTypeDescriptorGetter` helper class to keep the
+    `setProperties()` body readable.
+  - Added a "Build prerequisite (Mirth 4.5+)" javadoc block explaining
+    the `Purgable` classpath requirement.
+
+### Added
+- `stubs/` directory with a compile-time-only fallback interface for
+  `com.mirth.connect.donkey.util.purge.Purgable`. For users who
+  genuinely cannot obtain `donkey-server.jar`, the stub allows the
+  project to compile. See `stubs/README.md` for usage. The stub is
+  NOT packaged into the produced jars.
+- Module-level `pom.xml` files for `shared`, `server`, `client`, and
+  `test`. The parent `pom.xml` referenced these as Maven reactor
+  modules, but no module-level poms existed - meaning `mvn package`
+  could not actually build anything. Each module pom now declares the
+  correct dependencies, including `donkey-server` for the `Purgable`
+  requirement.
+- Parent `pom.xml`: added an internal-module `dependencyManagement`
+  entry for the shared module; added a build-prerequisites header
+  explaining the `donkey-server.jar` / `Purgable` requirement.
+- `README.md`: expanded with a "Troubleshooting" section covering
+  the `cannot access Purgable` cascade, the
+  `method does not override or implement a method from a supertype`
+  symptom, and the difference between `TransmissionModePlugin`
+  (server-side) and `TransmissionModeClientPlugin` (client-side).
+
+### Changed
+- `BUILD-INFO.txt`: added "Item 0: Build prerequisite" at the top
+  documenting the `donkey-server.jar` requirement and the full set
+  of fixes shipped in this patch release. Updated the build
+  instructions to mark `donkey-server.jar` as `CRITICAL`.
+
 ## [1.1.0] - 2026-08-14 - "Production hardening"
 
 This release reconciles the inconsistent `com.bitdreamit.mirth.astm.e1381.*`

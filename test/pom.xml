@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.bitdreamit.connect.plugins.transmission.astm</groupId>
+        <artifactId>bitdreamit-astm-e1381-transmission</artifactId>
+        <version>1.1.0</version>
+    </parent>
+
+    <artifactId>bitdreamit-astm-e1381-transmission-test</artifactId>
+    <packaging>jar</packaging>
+    <name>bitdreamit-astm-e1381-transmission-test</name>
+    <description>JUnit tests for the shared module: frame round-trip, checksum
+        validation, retry-metrics counters, frame corruption scenarios.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.bitdreamit.connect.plugins.transmission.astm</groupId>
+            <artifactId>bitdreamit-astm-e1381-transmission-shared</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- Purgable lives in donkey-server.jar; needed to resolve the
+             shared module's TransmissionModeProperties at compile time. -->
+        <dependency>
+            <groupId>com.mirth</groupId>
+            <artifactId>donkey-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-core</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>bitdreamit-astm-e1381-transmission-test</finalName>
+    </build>
+</project>

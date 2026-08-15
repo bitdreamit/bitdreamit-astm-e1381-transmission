@@ -8,6 +8,9 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="shared" />
+    <!-- Purgable lives in donkey-server.jar inside the mirth-server library;
+         needed to resolve TransmissionModeProperties in the shared module. -->
+    <orderEntry type="library" name="mirth-server" level="project" />
     <orderEntry type="library" name="junit-4" level="project" />
   </component>
 </module>

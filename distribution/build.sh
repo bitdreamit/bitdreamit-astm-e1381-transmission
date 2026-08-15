@@ -30,18 +30,52 @@ TEST_LIB="$MIRTH_LIBS_DIR/test"
 # Shared (model classes) - on both SERVER and CLIENT classpaths
 SHARED_MODEL_JAR="$CLIENT_LIB/mirth-client-core.jar"
 
+# donkey-server.jar is required by the shared module because the parent class
+# com.mirth.connect.model.transmission.TransmissionModeProperties (in
+# mirth-client-core.jar) implements com.mirth.connect.donkey.util.purge.Purgable
+# (in donkey-server.jar). Without it the shared module fails to compile with
+# "cannot access com.mirth.connect.donkey.util.purge.Purgable".
+DONKEY_SERVER_JAR="$SERVER_LIB/donkey-server.jar"
+
+# Shared compile classpath = client-core + donkey-server (for Purgable)
+SHARED_CP="$SHARED_MODEL_JAR:$DONKEY_SERVER_JAR"
+
 # Server-side classpath
 SERVER_CP="$SERVER_LIB/mirth-server.jar"
-SERVER_CP="$SERVER_CP:$SERVER_LIB/donkey-server.jar"
+SERVER_CP="$SERVER_CP:$DONKEY_SERVER_JAR"
 SERVER_CP="$SERVER_CP:$SHARED_MODEL_JAR"
 
-# Client-side classpath
+# Client-side classpath - includes donkey-server.jar for the same Purgable
+# reason: the shared module's TransmissionModeProperties is loaded transitively.
 CLIENT_CP="$CLIENT_LIB/mirth-client.jar"
+CLIENT_CP="$CLIENT_CP:$DONKEY_SERVER_JAR"
 CLIENT_CP="$CLIENT_CP:$SHARED_MODEL_JAR"
 
 # Test classpath (junit + hamcrest + server-side for testing Frame etc.)
 TEST_CP="$SERVER_CP:$TEST_LIB/junit-4.13.2.jar"
 TEST_CP="$TEST_CP:$TEST_LIB/hamcrest-core-1.3.jar"
+
+# --- Stub fallback -----------------------------------------------------------
+# If donkey-server.jar is genuinely not available, fall back to the
+# compile-time-only stub interface shipped under stubs/. The stub lets the
+# project compile but the real class is still required at runtime.
+if [ ! -f "$DONKEY_SERVER_JAR" ]; then
+    if [ -d "$PROJECT_DIR/stubs" ]; then
+        echo "[build] WARNING: $DONKEY_SERVER_JAR not found."
+        echo "[build]          Falling back to compile-time stubs at $PROJECT_DIR/stubs"
+        echo "[build]          (DO NOT deploy the produced jars to a Mirth server"
+        echo "[build]           that lacks the real Purgable class - see stubs/README.md)"
+        STUBS_SOURCEPATH="$PROJECT_DIR/stubs"
+        SHARED_CP_EXTRA=":$PROJECT_DIR/stubs"
+        SHARED_CP="$SHARED_CP$SHARED_CP_EXTRA"
+        CLIENT_CP="$CLIENT_CP$SHARED_CP_EXTRA"
+    else
+        echo "[build] ERROR: $DONKEY_SERVER_JAR not found and no stubs/ directory."
+        echo "[build]        Put donkey-server.jar at $DONKEY_SERVER_JAR"
+        echo "[build]        OR add a stubs/ directory with a fallback Purgable interface."
+        exit 2
+    fi
+fi
 
 # --- Helpers ----------------------------------------------------------------
 clean() {
@@ -54,25 +88,39 @@ build() {
     echo "[build] mirth libs: $MIRTH_LIBS_DIR"
     mkdir -p "$OUT_DIR/shared" "$OUT_DIR/server" "$OUT_DIR/client" "$OUT_DIR/test"
 
-    # 1. Compile shared module (needs Mirth model classes for TransmissionModeProperties)
+    # 1. Compile shared module.
+    #    Classpath MUST include BOTH mirth-client-core.jar (which provides
+    #    TransmissionModeProperties) AND donkey-server.jar (which provides
+    #    Purgable, the interface TransmissionModeProperties implements).
+    #    SHARED_CP is set above to include both. If donkey-server.jar is
+    #    missing, SHARED_CP falls back to the stubs/ source root.
     echo "[build] compiling shared..."
-    javac -d "$OUT_DIR/shared" \
-        -cp "$SHARED_MODEL_JAR" \
-        -sourcepath "$PROJECT_DIR/shared/src" \
-        $(find "$PROJECT_DIR/shared/src" -name "*.java")
+    if [ -n "${STUBS_SOURCEPATH:-}" ]; then
+        # No donkey-server.jar - use the stubs/ source root to provide Purgable.
+        javac -d "$OUT_DIR/shared" \
+            -cp "$SHARED_CP" \
+            -sourcepath "$PROJECT_DIR/shared/src:$STUBS_SOURCEPATH" \
+            $(find "$PROJECT_DIR/shared/src" -name "*.java")
+    else
+        javac -d "$OUT_DIR/shared" \
+            -cp "$SHARED_CP" \
+            -sourcepath "$PROJECT_DIR/shared/src" \
+            $(find "$PROJECT_DIR/shared/src" -name "*.java")
+    fi
 
     # 2. Compile server module (needs shared + server classpath)
     echo "[build] compiling server..."
     javac -cp "$OUT_DIR/shared:$SERVER_CP" \
         -d "$OUT_DIR/server" \
-        -sourcepath "$PROJECT_DIR/server/src" \
+        -sourcepath "$PROJECT_DIR/server/src${STUBS_SOURCEPATH:+:$STUBS_SOURCEPATH}" \
         $(find "$PROJECT_DIR/server/src" -name "*.java")
 
-    # 3. Compile client module (needs shared + client classpath)
+    # 3. Compile client module (needs shared + client classpath, which now
+    #    also includes donkey-server.jar for Purgable)
     echo "[build] compiling client..."
     javac -cp "$OUT_DIR/shared:$CLIENT_CP" \
         -d "$OUT_DIR/client" \
-        -sourcepath "$PROJECT_DIR/client/src" \
+        -sourcepath "$PROJECT_DIR/client/src${STUBS_SOURCEPATH:+:$STUBS_SOURCEPATH}" \
         $(find "$PROJECT_DIR/client/src" -name "*.java")
 
     # 4. Compile tests (needs shared + server + junit)

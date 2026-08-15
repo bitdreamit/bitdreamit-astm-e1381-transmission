@@ -29,6 +29,28 @@ import com.mirth.connect.model.transmission.TransmissionModeProperties;
  *       release and the newer refactored version, so any channel exported
  *       against an earlier jar will still load.</li>
  * </ul>
+ *
+ * <p><b>Build prerequisite (Mirth 4.5+):</b> the parent class
+ * {@code TransmissionModeProperties} (in {@code mirth-client-core.jar})
+ * implements {@code com.mirth.connect.donkey.util.purge.Purgable}
+ * (in {@code donkey-server.jar}). Both jars MUST be on the compile
+ * classpath of this module - otherwise the compiler fails with
+ * "cannot access com.mirth.connect.donkey.util.purge.Purgable" followed
+ * by a cascade of @Override and "cannot find symbol" errors. See
+ * the project README and BUILD-INFO.txt for the required classpath.</p>
+ *
+ * <p><b>API surface note (Mirth 4.5+):</b> the Mirth
+ * {@code TransmissionModeProperties} base class only declares the two
+ * {@code Purgable} methods - {@code getPluginPointName()} and
+ * {@code getPurgedProperties()}. It does NOT declare
+ * {@code getPropertyDescriptors()} or {@code setProperties(Map)} - those
+ * methods belong to the unrelated {@code PropertyVerifier} interface
+ * used by <i>DataType</i> properties (HL7V2, XML, ...). Consequently
+ * the {@code getPropertyDescriptors()} and {@code setProperties()}
+ * methods below are NOT annotated with {@code @Override}. They are
+ * retained because (a) the settings panel uses them as a single source
+ * of truth for field metadata, and (b) external tooling may use them
+ * to introspect or bulk-load the properties.</p>
  */
 public class ASTME1381TransmissionModeProperties extends TransmissionModeProperties {
 
@@ -80,8 +102,25 @@ public class ASTME1381TransmissionModeProperties extends TransmissionModePropert
         super(ASTME1381Constants.PLUGIN_NAME);
     }
 
-    @Override
-    @SuppressWarnings("unchecked")
+    /**
+     * Returns the metadata describing every editable property of this
+     * transmission mode (display name, description, editor type, allowed
+     * values, default value).
+     *
+     * <p><b>Not an override.</b> Mirth Connect 4.5+'s
+     * {@code TransmissionModeProperties} base class (in
+     * {@code mirth-client-core.jar}) only declares the two {@code Purgable}
+     * methods {@code getPluginPointName()} and {@code getPurgedProperties()}.
+     * The {@code getPropertyDescriptors()} / {@code setProperties(Map)}
+     * pattern comes from the unrelated {@code PropertyVerifier} interface
+     * used by <i>DataType</i> properties (HL7V2, XML, ...), not by
+     * transmission-mode properties.</p>
+     *
+     * <p>This method is retained for backwards compatibility with any
+     * external tooling that may introspect the descriptor map, and to
+     * give the settings panel a single source of truth for field
+     * metadata. The Mirth framework itself does NOT call it.</p>
+     */
     public Map<String, DataTypePropertyDescriptor> getPropertyDescriptors() {
         Map<String, DataTypePropertyDescriptor> props = new LinkedHashMap<>();
 
@@ -124,42 +163,62 @@ public class ASTME1381TransmissionModeProperties extends TransmissionModePropert
         return props;
     }
 
-    @Override
-    @SuppressWarnings("unchecked")
-    public void setProperties(Map properties) {
+    /**
+     * Bulk-sets every property from a descriptor map (the inverse of
+     * {@link #getPropertyDescriptors()}).
+     *
+     * <p><b>Not an override.</b> See {@link #getPropertyDescriptors()}
+     * for why this method is not declared on Mirth's
+     * {@code TransmissionModeProperties} base class. The Mirth framework
+     * itself does NOT call this method - the channel XML serializer
+     * deserializes properties directly into the field getters/setters
+     * (e.g. {@code setEnquiryByte(int)}) via XStream, not via this
+     * bulk loader.</p>
+     *
+     * <p>This method is retained for any external tooling (e.g. import
+     * scripts, channel migrators) that wants to populate the properties
+     * from a descriptor map in one shot.</p>
+     */
+    public void setProperties(Map<String, DataTypePropertyDescriptor> properties) {
         if (properties == null) return;
 
-        if (properties.get("enquiryByte") != null)            this.enquiryByte            = parseHex(properties.get("enquiryByte"));
-        if (properties.get("startOfFrameByte") != null)       this.startOfFrameByte       = parseHex(properties.get("startOfFrameByte"));
-        if (properties.get("maxFrameContentLength") != null)  this.maxFrameContentLength  = parseInt(properties.get("maxFrameContentLength"));
-        if (properties.get("intermediateEndOfFrame") != null) this.intermediateEndOfFrame = parseHex(properties.get("intermediateEndOfFrame"));
-        if (properties.get("endOfFrameByte") != null)         this.endOfFrameByte         = parseHex(properties.get("endOfFrameByte"));
-        if (properties.get("checksumByteLength") != null)     this.checksumByteLength     = parseInt(properties.get("checksumByteLength"));
-        if (properties.get("frameTerminator") != null)        this.frameTerminator        = String.valueOf(properties.get("frameTerminator"));
-        if (properties.get("endOfTransmissionByte") != null)  this.endOfTransmissionByte  = parseHex(properties.get("endOfTransmissionByte"));
+        DataTypeDescriptorGetter props = new DataTypeDescriptorGetter(properties);
 
-        if (properties.get("validateFrameNumber") != null)    this.validateFrameNumber    = toBoolean(properties.get("validateFrameNumber"));
-        if (properties.get("strictFrameSequencing") != null)   this.strictFrameSequencing  = toBoolean(properties.get("strictFrameSequencing"));
-        if (properties.get("frameNumberStart") != null)       this.frameNumberStart       = parseInt(properties.get("frameNumberStart"));
-        if (properties.get("ignoreServerSideCancel") != null)  this.ignoreServerSideCancel = toBoolean(properties.get("ignoreServerSideCancel"));
-        if (properties.get("useChecksum") != null)            this.useChecksum            = toBoolean(properties.get("useChecksum"));
-        if (properties.get("useStrictValidation") != null)    this.useStrictValidation    = toBoolean(properties.get("useStrictValidation"));
-        if (properties.get("checksumAlgorithm") != null)      this.checksumAlgorithm      = String.valueOf(properties.get("checksumAlgorithm"));
-        if (properties.get("bidirectional") != null)          this.bidirectional          = toBoolean(properties.get("bidirectional"));
-        if (properties.get("positiveAckByte") != null)        this.positiveAckByte        = parseHex(properties.get("positiveAckByte"));
-        if (properties.get("negativeAckByte") != null)        this.negativeAckByte        = parseHex(properties.get("negativeAckByte"));
+        // --- Frame Settings ---
+        if (props.has("enquiryByte"))            this.enquiryByte            = parseHex(props.get("enquiryByte"));
+        if (props.has("startOfFrameByte"))       this.startOfFrameByte       = parseHex(props.get("startOfFrameByte"));
+        if (props.has("maxFrameContentLength"))  this.maxFrameContentLength  = parseInt(props.get("maxFrameContentLength"));
+        if (props.has("intermediateEndOfFrame")) this.intermediateEndOfFrame = parseHex(props.get("intermediateEndOfFrame"));
+        if (props.has("endOfFrameByte"))         this.endOfFrameByte         = parseHex(props.get("endOfFrameByte"));
+        if (props.has("checksumByteLength"))     this.checksumByteLength     = parseInt(props.get("checksumByteLength"));
+        if (props.has("frameTerminator"))        this.frameTerminator        = String.valueOf(props.get("frameTerminator"));
+        if (props.has("endOfTransmissionByte"))  this.endOfTransmissionByte  = parseHex(props.get("endOfTransmissionByte"));
 
-        if (properties.get("maxTransferAttempts") != null)    this.maxTransferAttempts    = parseInt(properties.get("maxTransferAttempts"));
-        if (properties.get("maxEnqRetries") != null)          this.maxEnqRetries          = parseInt(properties.get("maxEnqRetries"));
-        if (properties.get("maxFrameRetries") != null)         this.maxFrameRetries        = parseInt(properties.get("maxFrameRetries"));
-        if (properties.get("establishmentTimeout") != null)   this.establishmentTimeout   = parseInt(properties.get("establishmentTimeout"));
-        if (properties.get("contentionTimeout") != null)      this.contentionTimeout      = parseInt(properties.get("contentionTimeout"));
-        if (properties.get("frameTimeout") != null)           this.frameTimeout           = parseInt(properties.get("frameTimeout"));
-        if (properties.get("responseTimeout") != null)        this.responseTimeout        = parseInt(properties.get("responseTimeout"));
-        if (properties.get("enqTimeoutMs") != null)            this.enqTimeoutMs           = parseInt(properties.get("enqTimeoutMs"));
-        if (properties.get("frameAckTimeoutMs") != null)       this.frameAckTimeoutMs      = parseInt(properties.get("frameAckTimeoutMs"));
+        // --- Validation Settings ---
+        if (props.has("validateFrameNumber"))    this.validateFrameNumber    = toBoolean(props.get("validateFrameNumber"));
+        if (props.has("strictFrameSequencing"))   this.strictFrameSequencing  = toBoolean(props.get("strictFrameSequencing"));
+        if (props.has("frameNumberStart"))       this.frameNumberStart       = parseInt(props.get("frameNumberStart"));
+        if (props.has("ignoreServerSideCancel"))  this.ignoreServerSideCancel = toBoolean(props.get("ignoreServerSideCancel"));
+        if (props.has("useChecksum"))            this.useChecksum            = toBoolean(props.get("useChecksum"));
+        if (props.has("useStrictValidation"))    this.useStrictValidation    = toBoolean(props.get("useStrictValidation"));
+        if (props.has("checksumAlgorithm"))      this.checksumAlgorithm      = String.valueOf(props.get("checksumAlgorithm"));
+        if (props.has("bidirectional"))          this.bidirectional          = toBoolean(props.get("bidirectional"));
+        if (props.has("positiveAckByte"))        this.positiveAckByte        = parseHex(props.get("positiveAckByte"));
+        if (props.has("negativeAckByte"))        this.negativeAckByte        = parseHex(props.get("negativeAckByte"));
 
-        if (properties.get("serverMode") != null)             this.serverMode             = toBoolean(properties.get("serverMode"));
+        // --- Connection Settings ---
+        if (props.has("maxTransferAttempts"))    this.maxTransferAttempts    = parseInt(props.get("maxTransferAttempts"));
+        if (props.has("maxEnqRetries"))          this.maxEnqRetries          = parseInt(props.get("maxEnqRetries"));
+        if (props.has("maxFrameRetries"))         this.maxFrameRetries        = parseInt(props.get("maxFrameRetries"));
+        if (props.has("establishmentTimeout"))   this.establishmentTimeout   = parseInt(props.get("establishmentTimeout"));
+        if (props.has("contentionTimeout"))      this.contentionTimeout      = parseInt(props.get("contentionTimeout"));
+        if (props.has("frameTimeout"))           this.frameTimeout           = parseInt(props.get("frameTimeout"));
+        if (props.has("responseTimeout"))        this.responseTimeout        = parseInt(props.get("responseTimeout"));
+        if (props.has("enqTimeoutMs"))            this.enqTimeoutMs           = parseInt(props.get("enqTimeoutMs"));
+        if (props.has("frameAckTimeoutMs"))       this.frameAckTimeoutMs      = parseInt(props.get("frameAckTimeoutMs"));
+
+        // --- Mode ---
+        if (props.has("serverMode"))             this.serverMode             = toBoolean(props.get("serverMode"));
     }
 
     // ------------------------------------------------------------------
@@ -191,6 +250,38 @@ public class ASTME1381TransmissionModeProperties extends TransmissionModePropert
         if (o == null) return false;
         if (o instanceof Boolean) return (Boolean) o;
         return Boolean.parseBoolean(o.toString());
+    }
+
+    /**
+     * Thin wrapper around a {@code Map<String, DataTypePropertyDescriptor>}
+     * that exposes the stored value (which may be a {@code String}, {@code Integer},
+     * {@code Boolean}, etc., depending on the {@link PropertyEditorType}) and
+     * keeps the {@code setProperties} body readable.
+     *
+     * <p>Mirth's channel serializer stores the value of every property as the
+     * first constructor argument of {@code DataTypePropertyDescriptor}; the
+     * accessor below returns that value as a plain {@code Object}, leaving
+     * the per-property parsing to {@link #parseHex}/{@link #parseInt}/
+     * {@link #toBoolean}.</p>
+     */
+    private static final class DataTypeDescriptorGetter {
+        private final Map<String, DataTypePropertyDescriptor> backing;
+
+        DataTypeDescriptorGetter(Map<String, DataTypePropertyDescriptor> backing) {
+            this.backing = backing;
+        }
+
+        boolean has(String key) {
+            return backing.containsKey(key) && backing.get(key) != null;
+        }
+
+        Object get(String key) {
+            DataTypePropertyDescriptor d = backing.get(key);
+            if (d == null) return null;
+            // DataTypePropertyDescriptor.getValue() returns the configured value
+            // (String / Integer / Boolean) set by the channel editor.
+            return d.getValue();
+        }
     }
 
     // ------------------------------------------------------------------
@@ -258,10 +349,15 @@ public class ASTME1381TransmissionModeProperties extends TransmissionModePropert
     public void setServerMode(boolean serverMode) { this.serverMode = serverMode; }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Map<String, Object> getPurgedProperties() {
         Map<String, Object> purged = new HashMap<>();
-        purged.put("pluginPointName", getPluginPointName());
+        // Use the constant directly instead of the inherited getPluginPointName()
+        // (defined on Purgable). The two are guaranteed identical because
+        // ASTME1381TransmissionModeProperties() passes PLUGIN_NAME to super().
+        // This also avoids a hard compile-time dependency on Purgable being
+        // resolvable from this file - helpful when partial Mirth jars are
+        // on the classpath.
+        purged.put("pluginPointName", ASTME1381Constants.PLUGIN_NAME);
         purged.put("validateFrameNumber", validateFrameNumber);
         purged.put("strictFrameSequencing", strictFrameSequencing);
         purged.put("frameNumberStart", frameNumberStart);

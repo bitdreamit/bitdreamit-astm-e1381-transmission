@@ -31,6 +31,31 @@
         <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
 
+    <!--
+        IMPORTANT (build prerequisites)
+        ------------------------------------------------------------------
+        Mirth Connect jars are not published to Maven Central, so each
+        module pulls them in as `system`-scoped dependencies from a local
+        folder, by default `${user.home}/mirth-libs/`. Override with
+        `-Dmirth.libs=/path/to/mirth-libs` on the command line.
+
+        The shared module's `ASTME1381TransmissionModeProperties` extends
+        `com.mirth.connect.model.transmission.TransmissionModeProperties`
+        (in mirth-client-core.jar). In Mirth 4.5+ that parent class
+        implements `com.mirth.connect.donkey.util.purge.Purgable`, which
+        lives in donkey-server.jar. If donkey-server.jar is NOT on the
+        classpath, the compiler fails with:
+
+            java: cannot access com.mirth.connect.donkey.util.purge.Purgable
+            class file for Purgable not found
+
+        followed by a cascade of "method does not override or implement a
+        method from a supertype" and "cannot find symbol" errors. The fix
+        is to ensure donkey-server.jar is on the compile classpath of any
+        module that depends on the shared module (which is all of them).
+        Each module-level pom.xml below already declares it.
+    -->
+
     <modules>
         <module>shared</module>
         <module>server</module>
@@ -40,9 +65,14 @@
 
     <dependencyManagement>
         <dependencies>
-            <!-- Mirth Connect jars are not in Maven Central; declare as system-scoped
-                 dependencies pointing to the local ../mirth-libs/ folder. Override
-                 with -Dmirth.libs=/path/to/mirth-libs on the command line. -->
+            <!-- Internal modules -->
+            <dependency>
+                <groupId>com.bitdreamit.connect.plugins.transmission.astm</groupId>
+                <artifactId>bitdreamit-astm-e1381-transmission-shared</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- Mirth Connect jars (system-scoped, point at ../mirth-libs/) -->
             <dependency>
                 <groupId>com.mirth</groupId>
                 <artifactId>mirth-client-core</artifactId>

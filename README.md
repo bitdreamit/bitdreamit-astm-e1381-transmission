@@ -64,23 +64,152 @@ bitdreamit-astm-e1381-transmission/
 1. Copy Mirth jars to a sibling `mirth-libs/` folder:
    ```
    ../mirth-libs/server/mirth-server.jar
-   ../mirth-libs/server/donkey-server.jar
+   ../mirth-libs/server/donkey-server.jar        # REQUIRED - provides com.mirth.connect.donkey.util.purge.Purgable
    ../mirth-libs/client/mirth-client.jar
-   ../mirth-libs/client/mirth-client-core.jar      # shared model classes
+   ../mirth-libs/client/mirth-client-core.jar      # shared model classes (incl. TransmissionModeProperties)
    ../mirth-libs/test/junit-4.13.2.jar
    ../mirth-libs/test/hamcrest-core-1.3.jar
    ```
 
-2. In IntelliJ, declare two project-level libraries:
+2. In IntelliJ, declare three project-level libraries:
    - `mirth-server` = `mirth-server.jar` + `donkey-server.jar` + `mirth-client-core.jar`
    - `mirth-client` = `mirth-client.jar` + `mirth-client-core.jar`
    - `junit-4`      = `junit-4.13.2.jar` + `hamcrest-core-1.3.jar`
 
+   > **Critical:** `donkey-server.jar` MUST be in the `mirth-server` library.
+   > Without it, the `shared` module fails to compile with cascading
+   > `cannot access com.mirth.connect.donkey.util.purge.Purgable` errors.
+   > See **Troubleshooting** below.
+
 3. Open this folder in IntelliJ IDEA (`File → Open`).
 
 4. Modules `shared`, `server`, `client`, `test` load automatically.
+   Each module's `.iml` file already declares the correct library dependencies:
+   - `shared` → `mirth-server` + `mirth-client`
+   - `server` → `shared` + `mirth-server`
+   - `client` → `shared` + `mirth-client` + `mirth-server`
+   - `test` → `shared` + `mirth-server` + `junit-4`
 
 5. `Build → Build Project` (Ctrl+F9).
+
+## Troubleshooting
+
+### `cannot access com.mirth.connect.donkey.util.purge.Purgable`
+
+This is the most common build failure. It happens when `donkey-server.jar`
+is missing from the compile classpath. The parent class
+`TransmissionModeProperties` (in `mirth-client-core.jar`) implements
+`Purgable` (in `donkey-server.jar`), so both jars must be available.
+
+**Symptoms:**
+```
+ASTME1381TransmissionModeProperties.java:33:8
+java: cannot access com.mirth.connect.donkey.util.purge.Purgable
+  class file for com.mirth.connect.donkey.util.purge.Purgable not found
+ASTME1381TransmissionModeProperties.java:83:5
+java: method does not override or implement a method from a supertype
+ASTME1381TransmissionModeProperties.java:132:63
+java: cannot find symbol
+  symbol:   variable this
+  location: class com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties
+...
+ASTME1381TransmissionModeProperties.java:264:39
+java: cannot find symbol
+  symbol:   method getPluginPointName()
+```
+
+**Fix (preferred):** locate `donkey-server.jar` in your Mirth Connect
+installation (`$MIRTH_HOME/lib/donkey-server.jar` or
+`$MIRTH_HOME/lib/extensions/server/donkey-server.jar`) and copy it to
+`../mirth-libs/server/donkey-server.jar`. Then in IntelliJ:
+File → Project Structure → Libraries → `mirth-server` → click `+` →
+attach the jar.
+
+**Fix (fallback):** if you genuinely cannot obtain `donkey-server.jar`,
+add the `stubs/` directory to your compile source roots. See
+[`stubs/README.md`](stubs/README.md) for details. The stub interface
+lets you compile, but the real Mirth Connect server still needs the
+real `Purgable` class at runtime.
+
+### `method does not override or implement a method from a supertype`
+
+There are TWO different root causes for this error in this project:
+
+1. **On `getPurgedProperties()`** (or all three methods at once) -
+   always a downstream symptom of the `Purgable` issue above. Once
+   `donkey-server.jar` is on the classpath, these errors disappear.
+
+2. **On `getPropertyDescriptors()` and/or `setProperties(Map)` only** -
+   the Mirth Connect 4.5+ `TransmissionModeProperties` base class does
+   NOT declare these methods. They belong to the unrelated
+   `PropertyVerifier` interface used by **DataType** properties
+   (HL7V2, XML, ...), not by transmission-mode properties. The original
+   plugin author copy-pasted them from a data type plugin and annotated
+   them with `@Override`, but the annotations were always wrong.
+
+   **Fix:** make sure you are using v1.1.2+ of this plugin, which
+   removes the `@Override` annotations from both methods. The methods
+   themselves are retained (the settings panel uses
+   `getPropertyDescriptors()` as a single source of truth for field
+   metadata; external tooling may call `setProperties(Map)` to bulk-load
+   the bean). Mirth's channel XML serializer does NOT call either
+   method - it populates the bean via the individual field setters
+   (e.g. `setEnquiryByte(int)`) using XStream.
+
+### `TransmissionModePlugin` vs `TransmissionModeClientPlugin` vs `TransmissionModeProvider`
+
+In Mirth Connect 4.5+ the abstract base classes for transmission-mode plugins
+have **similar but opposite** names to what the original v1.0.x / v1.1.x
+plugin code assumed:
+
+| Side | Original code assumed | Actual Mirth 4.5+ class |
+|------|----------------------|--------------------------|
+| Server | `TransmissionModeServerProvider` (does NOT exist) | `com.mirth.connect.plugins.TransmissionModeProvider` |
+| Server | `TransmissionModePlugin` (exists, but is the CLIENT-side class!) | `TransmissionModeProvider` |
+| Client | `TransmissionModeClientPlugin` (does NOT exist) | `com.mirth.connect.plugins.TransmissionModePlugin` |
+
+So:
+- `com.mirth.connect.plugins.TransmissionModePlugin` is the **CLIENT-side**
+  abstract class. It extends `ClientPlugin` and declares the abstract method
+  `createProvider()` which returns a `TransmissionModeClientProvider`.
+- `com.mirth.connect.plugins.TransmissionModeProvider` is the **SERVER-side**
+  abstract class. It implements `ServerPlugin` and declares the abstract
+  method `getStreamHandler(InputStream, OutputStream, BatchStreamReader,
+  TransmissionModeProperties)`.
+- `com.mirth.connect.plugins.TransmissionModeClientProvider` is the abstract
+  base class for client-side provider instances (the things that actually
+  drive the `send(OutputStream, InputStream, byte[])` flow). It declares
+  the abstract method `getSampleValue()`.
+
+v1.1.3 of this plugin fixes all three mismatches:
+- `ASTME1381TransmissionModePlugin` (server) now extends
+  `TransmissionModeProvider`.
+- `ASTME1381TransmissionModeClientPlugin` (client) now extends
+  `TransmissionModePlugin` and overrides `createProvider()`.
+- `ASTME1381ClientProvider` now overrides the required `getSampleValue()`
+  abstract method.
+- `ASTME1381ServerProvider` (which extended a non-existent
+  `TransmissionModeServerProvider`) has been DELETED. The receive flow
+  already lives in `ASTME1381StreamHandler.read()`.
+
+### `cannot find symbol: class TransmissionModeServerProvider`
+
+The original v1.0.x / v1.1.x plugin code referenced a class named
+`TransmissionModeServerProvider` in the `com.mirth.connect.plugins`
+package. That class does NOT exist in any released Mirth Connect
+version. The fix is to delete the file `ASTME1381ServerProvider.java`
+(which extends the non-existent class) and rely on the existing
+`ASTME1381StreamHandler.read()` for the receive flow. v1.1.3 does this
+automatically.
+
+### `does not override abstract method getSampleValue() in TransmissionModeClientProvider`
+
+`com.mirth.connect.plugins.TransmissionModeClientProvider` declares
+the abstract method `getSampleValue()` (which returns a `String`).
+The original `ASTME1381ClientProvider` did not override it, so the
+class would not compile. v1.1.3 adds the missing override, returning a
+minimal ASTM E1381-02 sample payload (Header / Patient / Order /
+Result / Terminator records) for Mirth's "Send Test Message" feature.
 
 ## Build & Deploy
 

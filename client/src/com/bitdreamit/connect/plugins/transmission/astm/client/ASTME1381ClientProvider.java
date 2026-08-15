@@ -13,9 +13,58 @@ import java.io.OutputStream;
 import java.util.List;
 import java.util.ArrayList;
 
+/**
+ * Client-side transmission provider for the ASTM E1381-02 protocol.
+ *
+ * <p>Extends Mirth's {@code TransmissionModeClientProvider} (the abstract
+ * base class for transmission-mode client-side providers in Mirth Connect
+ * 4.5+). The Mirth framework instantiates this class via the
+ * {@code createProvider()} factory on
+ * {@code ASTME1381TransmissionModeClientPlugin}, then calls
+ * {@link #setProperties(TransmissionModeProperties)} to inject the
+ * channel's configured properties, and finally calls
+ * {@link #send(OutputStream, InputStream, byte[])} for each outbound
+ * message.</p>
+ *
+ * <p><b>Required overrides from {@code TransmissionModeClientProvider}:</b>
+ * <ul>
+ *   <li>{@code getSampleValue()} - returns a sample ASTM E1381 message
+ *       string (used by the channel editor's "Send Test Message"
+ *       feature).</li>
+ *   <li>{@code send(...)} - drives the ENQ -> ACK -> frames -> EOT flow.</li>
+ * </ul></p>
+ *
+ * <p>{@code setProperties(TransmissionModeProperties)} is declared on the
+ * parent and is annotated {@code @Override}.</p>
+ */
 public class ASTME1381ClientProvider extends TransmissionModeClientProvider {
 
     private static final Logger logger = Logger.getLogger(ASTME1381ClientProvider.class);
+
+    /**
+     * Sample ASTM E1381 message used by Mirth's "Send Test Message"
+     * feature in the channel editor. The value is a minimal but valid
+     * ASTM E1381-02 frame sequence: one record split across a single
+     * final frame (FN=1, ETX). It is NOT pre-encoded with STX/checksum/
+     * CR/LF because {@link #send(OutputStream, InputStream, byte[])}
+     * will re-frame whatever payload it receives - the sample value
+     * represents the application-layer payload, not the wire format.
+     *
+     * <p>Override of the abstract method declared on
+     * {@code TransmissionModeClientProvider}.</p>
+     */
+    @Override
+    public String getSampleValue() {
+        // Minimal ASTM E1381 application-layer payload. The send() method
+        // will wrap this into STX/FN/payload/ETX/checksum/CR/LF frames.
+        // The payload below follows the ASTM E1394 (clinical chemistry)
+        // record layout that is commonly carried over E1381 framing.
+        return "H|\\^&|||ASTM|||||P|1\r"
+             + "P|1|||Patient^Test||||||||||||||\r"
+             + "O|1|SAMPLE01||ALL||||||||O|||||||\r"
+             + "R|1|^^GLU^GLUCOSE|180|mg/dL|70-105|N|||2024\r"
+             + "L|1|N\r";
+    }
 
     private ASTME1381TransmissionModeProperties props;
     private final ASTME1381RetryMetrics metrics = new ASTME1381RetryMetrics();

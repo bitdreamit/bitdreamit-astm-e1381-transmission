@@ -9,6 +9,10 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="shared" />
+    <!-- client needs mirth-client.jar for UI classes; mirth-server library
+         is added so donkey-server.jar (Purgable) is resolvable when the
+         shared module's TransmissionModeProperties is loaded. -->
     <orderEntry type="library" name="mirth-client" level="project" />
+    <orderEntry type="library" name="mirth-server" level="project" />
   </component>
 </module>

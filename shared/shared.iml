@@ -7,7 +7,11 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <!-- shared now depends on mirth-client-core for TransmissionModeProperties -->
+    <!-- shared needs mirth-client-core.jar (for TransmissionModeProperties) AND
+         donkey-server.jar (for com.mirth.connect.donkey.util.purge.Purgable,
+         which TransmissionModeProperties implements). The mirth-server project
+         library already bundles both jars, so we add it here. -->
+    <orderEntry type="library" name="mirth-server" level="project" />
     <orderEntry type="library" name="mirth-client" level="project" />
   </component>
 </module>
