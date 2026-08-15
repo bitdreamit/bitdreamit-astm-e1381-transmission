@@ -17,7 +17,7 @@
 
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.1.9</pluginVersion>
+    <pluginVersion>1.2.0</pluginVersion>
     <mirthVersion>4.5.2</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol - client side.
@@ -27,9 +27,19 @@ destination connector. Also provides the client-side
 TransmissionModeClientProvider that exposes the sample messages and
 property-validation hooks for the Mirth channel editor.</description>
 
+    <!--
+      The Properties subclass MUST be listed in <clientClasses> so that
+      Mirth's ExtensionController registers it with the CLIENT-side
+      XStream security framework. The Administrator UI deserializes
+      channel XML locally when editing/viewing channels - without this
+      registration, the client throws ForbiddenClassException when
+      loading a channel that uses the ASTM E1381 transmission mode.
+      See CHANGELOG.md v1.2.0.
+    -->
     <clientClasses>
         <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin</string>
         <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider</string>
+        <string>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</string>
     </clientClasses>
 
     <library type="CLIENT" path="bitdreamit-astm-e1381-transmission-client.jar" />

@@ -17,7 +17,7 @@
 
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.1.9</pluginVersion>
+    <pluginVersion>1.2.0</pluginVersion>
     <mirthVersion>4.5.2</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol - server side.
@@ -26,8 +26,15 @@ connectors. Implements ENQ/ACK/NAK establishment, STX/ETB/ETX framing,
 Add-Mod-256 checksum, 0-7 frame sequencing, per-frame retry with exponential
 backoff, and per-phase timeouts.</description>
 
+    <!--
+      The Properties subclass MUST be listed in <serverClasses> so that
+      Mirth's ExtensionController registers it with XStream's security
+      framework. Without this, channel deserialization fails with
+      ForbiddenClassException. See CHANGELOG.md v1.2.0.
+    -->
     <serverClasses>
         <string>com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin</string>
+        <string>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</string>
     </serverClasses>
 
     <library type="SHARED" path="bitdreamit-astm-e1381-transmission-shared.jar" />

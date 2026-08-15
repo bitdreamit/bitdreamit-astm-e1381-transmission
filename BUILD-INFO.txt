@@ -1,6 +1,6 @@
 ============================================================
 bitdreamit-astm-e1381-transmission
-Production-hardened release v1.1.9
+Production-hardened release v1.2.0
 Built: 2026-08-15
 ============================================================
 
@@ -30,11 +30,10 @@ XML files (2 required):
                            elements inside <serverClasses> /
                            <clientClasses> (List<String> of FQCNs)
                            and top-level <library type="..."
-                           path="..." /> elements. Matches the
-                           format Mirth uses for its own built-in
-                           datatype-hl7v3 plugin. See v1.1.9
-                           CHANGELOG entry for the full format
-                           reference.
+                           path="..." /> elements. Lists the
+                           Properties subclass in BOTH class lists
+                           so XStream's security framework allows
+                           deserialization (see v1.2.0 CHANGELOG).
   - transmissionmode.xml  : transmission-mode-specific descriptor.
                            Declares the server-side class name
                            (TransmissionModePlugin subclass), the
@@ -58,72 +57,55 @@ unsigned.
 RECENT FIX HISTORY (newest first)
 ============================================================
 
-v1.1.9 (this release)
-  - Completely rewrote all three plugin.xml files to use the
-    actual Mirth 4.5.2 format:
-      <serverClasses>
-          <string>FQCN</string>     (List<String>, no wrapper element)
-      </serverClasses>
-      <clientClasses>
-          <string>FQCN</string>
-      </clientClasses>
-      <library type="CLIENT|SHARED|SERVER" path="..." />  (top-level)
-    Previous versions (v1.0.0 - v1.1.8) used a wrong format inherited
-    from older Mirth 3.x conventions (<serverClass name="...">
-    wrapper elements with nested <library>). XStream 1.4.x in
-    Mirth 4.5.2 rejects that format with
-    "CannotResolveClassException: serverClass".
-  - Confirmed against Mirth's own built-in datatype-hl7v3 plugin
-    (whose plugin.xml uses exactly the format we now use).
-  - Bumped <mirthVersion> from "4.x" to "4.5.2" (the actual tested
-    version) in all three plugin.xml files.
+v1.2.0 (this release)
+  - Added ASTME1381TransmissionModeProperties to <serverClasses>
+    AND <clientClasses> in all three plugin.xml files. Without this,
+    XStream's security framework (NoTypePermission in XStream 1.4.x)
+    rejects the Properties class at channel-deserialization time with
+    ForbiddenClassException. The transmissionmode.xml's
+    <sharedClassName> only tells Mirth's transmission-mode framework
+    about the class - it does NOT register it with XStream. Only
+    classes listed in plugin.xml's <serverClasses> / <clientClasses>
+    get XStream-registered.
+  - Bumped pluginVersion to 1.2.0.
+
+v1.1.9
+  - Completely rewrote all three plugin.xml files to use the actual
+    Mirth 4.5.2 format (<string> elements + top-level <library>).
 
 v1.1.8
   - Changed <serverClass class="..."> -> <serverClass name="...">
-    (was XStream reserved attribute). PARTIAL fix only - the
-    <serverClass> wrapper element itself was still wrong. Fixed
-    properly in v1.1.9 by removing the wrapper entirely and using
-    <string> elements directly.
+    (partial fix - the wrapper element was still wrong, fixed in v1.1.9).
 
 v1.1.7
   - Consolidated two split XML files into a single root-level
     plugin.xml. Added distribution/deploy.sh helper script.
 
 v1.1.6
-  - Removed the send() method and all its wire-protocol helpers
-    from ASTME1381ClientProvider.
+  - Removed the send() method from ASTME1381ClientProvider.
 
 v1.1.5
-  - Added miglayout-core-4.2.jar to the IntelliJ mirth-client library.
-  - Implemented the five additional abstract methods on
+  - Added miglayout-core-4.2.jar. Implemented 5 abstract methods on
     TransmissionModeClientProvider.
 
 v1.1.4
   - Added the required getSampleLabel() override.
 
 v1.1.3
-  - Fixed wrong base class names:
-      * server/ASTME1381TransmissionModePlugin extends
-        TransmissionModeProvider (server-side).
-      * client/ASTME1381TransmissionModeClientPlugin extends
-        TransmissionModePlugin (client-side).
-      * Deleted server/ASTME1381ServerProvider.java.
+  - Fixed wrong base class names (TransmissionModePlugin vs
+    TransmissionModeProvider). Deleted ASTME1381ServerProvider.java.
 
 v1.1.2
-  - Removed phantom @Override from getPropertyDescriptors() and
-    setProperties(Map) on ASTME1381TransmissionModeProperties.
+  - Removed phantom @Override on getPropertyDescriptors() /
+    setProperties(Map).
 
 v1.1.1
-  - Added donkey-server.jar to the IntelliJ mirth-server library.
-  - Added module-level pom.xml files.
-  - Added stubs/ directory with a compile-time-only Purgable
-    interface for environments where donkey-server.jar is unavailable.
+  - Added donkey-server.jar to the classpath (for Purgable).
+  - Added module-level pom.xml files. Added stubs/ directory.
 
 v1.1.0
-  - Production hardening: bounded ENQ timeout, cap on consecutive
-    NAKs, thread-safe RetryMetrics, per-phase configurable timeouts,
-    Log4j structured logging, null-safe property parsing, defensive
-    copies of frame payloads, 30 JUnit tests.
+  - Production hardening: bounded ENQ timeout, RetryMetrics,
+    per-phase timeouts, Log4j, 30 JUnit tests.
 
 v1.0.0 (original release)
   - Multiple inconsistencies prevented compilation and deployment.
@@ -132,23 +114,27 @@ v1.0.0 (original release)
 CORRECT plugin.xml FORMAT (Mirth Connect 4.5.2)
 ============================================================
 
-This is the format used by all three plugin.xml files in v1.1.9+.
+This is the format used by all three plugin.xml files in v1.2.0+.
 It matches the format Mirth uses for its own built-in plugins
-(e.g. datatype-hl7v3):
+(e.g. datatype-hl7v3), with the addition that the Properties
+subclass is listed in BOTH <serverClasses> and <clientClasses>
+(see v1.2.0 CHANGELOG for why):
 
   <pluginMetaData path="bitdreamit-astm-e1381-transmission">
       <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
       <author>Bit Dream IT</author>
-      <pluginVersion>1.1.9</pluginVersion>
+      <pluginVersion>1.2.0</pluginVersion>
       <mirthVersion>4.5.2</mirthVersion>
       <url>https://bitdreamit.com</url>
       <description>...</description>
       <serverClasses>
           <string>com.bitdreamit...ASTME1381TransmissionModePlugin</string>
+          <string>com.bitdreamit...ASTME1381TransmissionModeProperties</string>
       </serverClasses>
       <clientClasses>
           <string>com.bitdreamit...ASTME1381TransmissionModeClientPlugin</string>
           <string>com.bitdreamit...ASTME1381ClientProvider</string>
+          <string>com.bitdreamit...ASTME1381TransmissionModeProperties</string>
       </clientClasses>
       <library type="CLIENT" path="bitdreamit-astm-e1381-transmission-client.jar" />
       <library type="SHARED" path="bitdreamit-astm-e1381-transmission-shared.jar" />
@@ -158,42 +144,32 @@ It matches the format Mirth uses for its own built-in plugins
 Key points:
   - <serverClasses> / <clientClasses> contain <string> elements
     DIRECTLY (List<String> of FQCNs). NO <serverClass> wrapper.
-  - <library> elements are at the TOP LEVEL of <pluginMetaData>,
-    NOT nested inside class wrappers.
-  - <library> uses type="..." and path="..." attributes.
+  - <library> elements are at the TOP LEVEL of <pluginMetaData>.
+  - The Properties subclass MUST be in BOTH <serverClasses> AND
+    <clientClasses> so XStream allows deserialization on both sides.
   - <mirthVersion> is "4.5.2" (the actual tested version).
 
 ============================================================
 ARCHITECTURE (client UI vs. server wire protocol)
 ============================================================
 
-Mirth Connect 3.x / 4.x separates transmission-mode logic into two
-halves that run in different JVMs:
-
 CLIENT SIDE (Administrator UI process):
   ASTME1381TransmissionModeClientPlugin
     extends TransmissionModePlugin
   ASTME1381ClientProvider
     extends TransmissionModeClientProvider
-      (8 abstract methods: getSampleLabel, getSampleValue,
-       getProperties, getDefaultProperties, setProperties,
-       checkProperties, resetInvalidProperties, getSettingsComponent)
+  ASTME1381TransmissionModeProperties (registered for XStream)
   Responsibility: settings panel UI, sample messages,
     property validation, default property provisioning.
-  NEVER sends or receives bytes over the wire.
 
 SERVER SIDE (Mirth Server process):
   ASTME1381TransmissionModePlugin
     extends TransmissionModeProvider
-      (declares getStreamHandler(...))
   ASTME1381StreamHandler
     extends StreamHandler
-      (overrides read(), write(byte[]), commit(boolean))
+  ASTME1381TransmissionModeProperties (registered for XStream)
   Responsibility: actual wire protocol - ENQ/ACK/NAK/EOT,
     STX/FN/payload/ETX|ETB/checksum/CR/LF framing, retry, etc.
-
-The Mirth server process calls StreamHandler.read() and
-StreamHandler.write(byte[]) to move bytes over TCP/Serial.
 
 ============================================================
 BUILD PREREQUISITES
@@ -215,12 +191,6 @@ CRITICAL JARS (build will fail without these):
   - donkey-server.jar   -> missing it causes "cannot access Purgable"
   - miglayout-core-4.2  -> missing it causes "cannot access LC"
 
-If you genuinely cannot obtain donkey-server.jar, the project ships
-a compile-time-only stub at stubs/com/mirth/connect/donkey/util/purge/
-Purgable.java. Add the stubs/ directory to your IDE compile source
-roots to compile; the real class is still required at runtime.
-See stubs/README.md for details.
-
 ============================================================
 BUILD
 ============================================================
@@ -233,37 +203,24 @@ BUILD
 
 3. Build the three production JARs using one of:
 
-   a) IntelliJ IDEA Build Artifacts (recommended for development):
-        File -> Open this directory in IntelliJ IDEA.
-        Build -> Rebuild Project (Ctrl+Shift+F9) to compile all
-          four modules (shared, server, client, test).
+   a) IntelliJ IDEA Build Artifacts:
+        File -> Open -> Build -> Rebuild Project ->
         Build -> Build Artifacts... -> All Artifacts -> Build.
-      Three pre-configured artifact definitions live in
-        .idea/artifacts/
-      After the build, the JARs are at:
-        out/artifacts/bitdreamit_astm_e1381_transmission_shared/*.jar
-        out/artifacts/bitdreamit_astm_e1381_transmission_server/*.jar
-        out/artifacts/bitdreamit_astm_e1381_transmission_client/*.jar
-      You also need to copy the two XML files from the project root
-      to the extension folder:
-        cp plugin.xml             <extension-folder>/
-        cp transmissionmode.xml   <extension-folder>/
+      JARs at: out/artifacts/bitdreamit_astm_e1381_transmission_*/*.jar
+      Also copy: plugin.xml + transmissionmode.xml to extension folder.
 
-   b) Shell script (CI / headless builds):
+   b) Shell script:
         cd distribution && ./build.sh
         # outputs JARs + XML to ../out/
-        # subcommands: clean, build, test, rebuild
 
-   c) Deploy helper (assembles ready-to-drop extension folder):
+   c) Deploy helper:
         cd distribution
         ./deploy.sh             # build + assemble ../out/<ext-name>/
         ./deploy.sh zip         # also produce ../out/<ext-name>.zip
         ./deploy.sh install     # also copy to $MIRTH_HOME/extensions/
-                                #   (requires MIRTH_HOME env var)
 
    d) Maven:
         mvn -Dmirth.libs=$HOME/mirth-libs clean package
-        # outputs JARs to <module>/target/
 
 4. Output (5 production files):
      bitdreamit-astm-e1381-transmission-shared.jar
@@ -276,25 +233,14 @@ BUILD
 DEPLOY TO MIRTH CONNECT
 ============================================================
 
-Two deployment options:
-
 A) Install via the Mirth Administrator UI's Extension Manager:
-   - Build the JARs and assemble the extension folder using
-     `./deploy.sh zip` (or manually zip the 5 production files).
-   - In Mirth Administrator: Extensions -> Extension Manager ->
-     Install -> select the .zip file.
-   - The v1.1.9 fix (using <string> elements + top-level <library>
-     in plugin.xml, matching Mirth's own datatype-hl7v3 format) is
-     what makes this installation path work without the
-     "CannotResolveClassException" error.
+   - Build + assemble via `./deploy.sh zip`.
+   - Mirth Administrator: Extensions -> Extension Manager -> Install.
+   - v1.2.0 fixes: <string> elements (v1.1.9) + Properties class
+     in both class lists (v1.2.0) - together these make install
+     AND channel-load work without XStream errors.
 
-B) Manual file copy (bypass the Extension Manager UI):
-   - Stop Mirth.
-   - Copy the 5 production files to
-     $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
-   - Start Mirth.
-
-   Example:
+B) Manual file copy:
      MIRTH_HOME=/opt/mirth-connect
      EXT_DIR=$MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission
 
@@ -309,30 +255,18 @@ B) Manual file copy (bypass the Extension Manager UI):
      cp transmissionmode.xml   "$EXT_DIR/"
      sudo systemctl start mirth-connect
 
-     # Verify the extension loaded
-     sudo grep -A2 "ASTM E1381" /opt/mirth-connect/logs/mirth.log
-
 After Mirth restarts, the new "ASTM E1381" transmission mode will
 appear in the channel editor under:
   - TCP Listener -> Transmission Mode
   - TCP Sender   -> Transmission Mode
 
-See PRODUCTION.md for monitoring / operations guidance.
-
 ============================================================
 VERIFICATION
 ============================================================
 - All package declarations verified to match directory structure.
-- No stale references to the old com.bitdreamit.mirth.astm.* package.
 - Shared module compiles cleanly under JDK 17 (no external deps).
-- Full project (shared + server + client + tests) compiles cleanly
-  against Mirth Connect 4.5+ jars, PROVIDED donkey-server.jar AND
-  miglayout-core-4.2.jar are on the classpath.
-- All 30 JUnit tests pass:
-    ASTME1381FrameTest            (5 tests)
-    ASTME1381RetryMetricsTest      (6 tests, including concurrency)
-    ASTME1381FrameCorruptionTest   (11 tests)
-    ASTME1381RoundTripTest         (8 tests)
+- Full project compiles against Mirth Connect 4.5+ jars.
+- All 30 JUnit tests pass.
 - ./build.sh test passes end-to-end.
 
 ============================================================
@@ -342,4 +276,3 @@ REFERENCES
   https://docs.nextgen.com/en-US/mirthc2ae-connect-user-guide-3299192/astm-e1381-transmission-mode-12617
 - Original upstream repo:
   https://github.com/bitdreamit/bitdreamit-astm-e1381-transmission
-

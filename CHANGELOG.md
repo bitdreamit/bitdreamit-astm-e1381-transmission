@@ -5,6 +5,105 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-08-15 - "Register Properties class with XStream security framework"
+
+This patch fixes the runtime error that occurred when a user tried to
+open or edit a channel that uses the ASTM E1381 transmission mode
+(after the extension had been successfully installed via v1.1.9):
+
+```
+Channel "Treansmission" is invalid and cannot be edited. Original cause:
+com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties
+com.thoughtworks.xstream.security.ForbiddenClassException:
+  com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties
+    at com.thoughtworks.xstream.security.NoTypePermission.allows(NoTypePermission.java:26)
+    at com.thoughtworks.xstream.mapper.SecurityMapper.realClass(SecurityMapper.java:74)
+    ...
+    at com.mirth.connect.model.converters.MigratableConverter.unmarshal(MigratableConverter.java:101)
+    at com.mirth.connect.model.converters.ChannelConverter.unmarshal(ChannelConverter.java:79)
+```
+
+### Root cause
+Mirth Connect 4.5.2 uses XStream 1.4.x with a security framework that
+denies deserialization of all classes by default
+(`NoTypePermission`). Only classes that have been explicitly
+registered with XStream (via `xStream.allowTypes(...)`) can be
+deserialized.
+
+When Mirth's `ExtensionController` loads a plugin, it iterates
+through the classes declared in `<serverClasses>` and
+`<clientClasses>` in `plugin.xml` and registers each one with
+XStream's security framework. Classes NOT listed in those elements
+are NOT registered, and XStream rejects them at deserialization time.
+
+The v1.0.0 - v1.1.9 plugin code declared three classes in
+`plugin.xml`:
+- `ASTME1381TransmissionModePlugin` (server side)
+- `ASTME1381TransmissionModeClientPlugin` (client side)
+- `ASTME1381ClientProvider` (client side)
+
+But it did NOT declare `ASTME1381TransmissionModeProperties` - the
+class that Mirth serializes into channel XML as the
+`<transmissionModeProperties>` element. When the user opened a
+channel that used the ASTM E1381 transmission mode, XStream tried to
+deserialize the `<transmissionModeProperties>` element, hit
+`ASTME1381TransmissionModeProperties`, and rejected it with
+`ForbiddenClassException`.
+
+The `transmissionmode.xml`'s `<sharedClassName>` element (which
+DOES name `ASTME1381TransmissionModeProperties`) only tells Mirth's
+transmission-mode framework about the class - it does NOT register
+the class with XStream's security framework. That registration only
+happens for classes listed in `plugin.xml`'s `<serverClasses>` and
+`<clientClasses>`.
+
+### Fixed
+- `plugin.xml` (project root):
+  - Added `<string>com.bitdreamit....ASTME1381TransmissionModeProperties</string>`
+    to `<serverClasses>` (so the server-side XStream instance allows
+    deserialization when the server loads channels for execution).
+  - Added the same `<string>` to `<clientClasses>` (so the
+    client-side XStream instance in the Administrator UI allows
+    deserialization when the user opens/edits a channel).
+  - Added inline XML comments explaining why the Properties class
+    MUST be listed in both `<serverClasses>` and `<clientClasses>`.
+- `server/resources/plugin.xml`:
+  - Added the same `<string>` to `<serverClasses>`.
+- `client/resources/plugin.xml`:
+  - Added the same `<string>` to `<clientClasses>`.
+- Bumped `pluginVersion` to `1.2.0` (minor version bump because
+  this changes the plugin's declared class list, which affects how
+  Mirth registers the extension with XStream).
+
+### Why both server AND client sides?
+Mirth Connect 4.x runs two separate JVMs:
+1. The **Mirth Server** process - loads channels for execution,
+   deserializes channel XML using the server-side `ObjectXMLSerializer`.
+2. The **Mirth Administrator UI** process - runs on the user's
+   desktop, calls the server to fetch channel XML, then deserializes
+   it LOCALLY using the client-side `ObjectXMLSerializer` for
+   display in the channel editor.
+
+Both XStream instances need the Properties class registered. The
+error in the user's stack trace originated from the client side
+(`com.mirth.connect.client.ui.ChannelPanel.retrieveChannels` →
+`Client.getChannelSummary` → XML deserialization), but the server
+side would hit the same error when loading the channel for
+execution.
+
+### Verification
+After this patch:
+- The Mirth Administrator UI can open and edit channels that use
+  the ASTM E1381 transmission mode (no more
+  `ForbiddenClassException` at channel-load time).
+- The Mirth Server can load and execute channels that use the ASTM
+  E1381 transmission mode.
+- XStream's security framework allows deserialization of
+  `ASTME1381TransmissionModeProperties` on both the server-side
+  and client-side XStream instances, because the class is now
+  registered via `<serverClasses>` and `<clientClasses>` in
+  `plugin.xml`.
+
 ## [1.1.9] - 2026-08-15 - "Fix plugin.xml to use actual Mirth 4.5.2 format (List<String> + top-level library)"
 
 This patch fixes the second wave of the XStream install-time error

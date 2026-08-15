@@ -102,6 +102,119 @@ bitdreamit-astm-e1381-transmission/
 
 ## Troubleshooting
 
+### `CannotResolveClassException` when opening a channel (class not on classpath)
+
+If the extension installs successfully but you get this error when
+opening a channel:
+
+```
+CannotResolveClassException:
+  com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties
+path: /list/channelSummary[...]/channel/sourceConnector/properties/transmissionModeProperties
+```
+
+This is **different** from the `ForbiddenClassException` fixed in
+v1.2.0. `ForbiddenClassException` means XStream found the class but
+security denied it. `CannotResolveClassException` means the class
+isn't on the classpath **at all** — the Mirth Administrator UI's
+classloader doesn't have the extension's JAR.
+
+**Most common cause:** the Mirth Server or Administrator UI hasn't
+been restarted after replacing the extension files, so the old
+classloader (without the extension JAR) is still active.
+
+**Diagnostic checklist:**
+
+1. Run the diagnostic script:
+   ```bash
+   MIRTH_HOME=/opt/mirth-connect distribution/check_extension.sh
+   ```
+   This verifies:
+   - The extension folder exists with all 5 production files
+   - The `plugin.xml` is in the correct Mirth 4.5.2 format
+   - The Properties class is in both `<serverClasses>` and `<clientClasses>`
+   - The Properties class is actually present inside each JAR
+   - The extension folder name matches the `path` attribute
+
+2. **Restart the Mirth Server** (the server process must reload the
+   extension JARs into its classloader):
+   ```bash
+   sudo systemctl stop mirth-connect
+   # Verify the extension folder has all 5 files
+   ls $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
+   sudo systemctl start mirth-connect
+   ```
+
+3. **Close and reopen the Mirth Administrator UI completely** (not
+   just disconnect — fully close the application and relaunch). The
+   Administrator UI is a separate JVM that caches extension JARs
+   when it connects to the server. A full restart forces it to
+   re-download the extension from the server.
+
+4. **Verify in Extensions → Extension Manager** that the extension
+   is listed and enabled. If it's not listed, the install didn't
+   complete.
+
+5. **If the channel still can't be opened**, it may have stale XML
+   from a previous extension version. Delete the channel and create
+   a new one.
+
+### `ForbiddenClassException` when opening a channel (after successful install)
+
+After the extension installs successfully, you may see this error when
+opening or editing a channel that uses the ASTM E1381 transmission
+mode:
+
+```
+Channel "..." is invalid and cannot be edited. Original cause:
+com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties
+com.thoughtworks.xstream.security.ForbiddenClassException:
+  com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties
+    at com.thoughtworks.xstream.security.NoTypePermission.allows(...)
+    ...
+    at com.mirth.connect.model.converters.MigratableConverter.unmarshal(...)
+    at com.mirth.connect.model.converters.ChannelConverter.unmarshal(...)
+```
+
+**Root cause:** Mirth Connect 4.5.2 uses XStream 1.4.x with a
+security framework that denies deserialization of all classes by
+default (`NoTypePermission`). Only classes registered via
+`<serverClasses>` and `<clientClasses>` in `plugin.xml` are
+allowed. The `ASTME1381TransmissionModeProperties` class — the one
+Mirth serializes into channel XML as `<transmissionModeProperties>`
+— was not listed in either element, so XStream rejected it.
+
+The `transmissionmode.xml`'s `<sharedClassName>` element only tells
+Mirth's transmission-mode framework about the class; it does NOT
+register it with XStream's security framework.
+
+**Fix:** make sure you are using v1.2.0+, which adds
+`ASTME1381TransmissionModeProperties` to both `<serverClasses>` and
+`<clientClasses>` in all three `plugin.xml` files:
+
+```xml
+<serverClasses>
+    <string>com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin</string>
+    <string>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</string>  <!-- NEW in v1.2.0 -->
+</serverClasses>
+<clientClasses>
+    <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin</string>
+    <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider</string>
+    <string>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</string>  <!-- NEW in v1.2.0 -->
+</clientClasses>
+```
+
+The Properties class must be registered on BOTH sides because:
+- **Server side:** the Mirth Server deserializes channel XML when
+  loading channels for execution.
+- **Client side:** the Mirth Administrator UI deserializes channel
+  XML locally when the user opens/edits a channel.
+
+After the fix, XStream's security framework allows deserialization of
+`ASTME1381TransmissionModeProperties` on both sides, and channels
+that use the ASTM E1381 transmission mode can be opened, edited, and
+executed normally.
+
 ### `CannotResolveClassException` at extension-install time (HTTP 500)
 
 When installing the extension via the Mirth Administrator UI's

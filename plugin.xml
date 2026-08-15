@@ -59,7 +59,7 @@
     <!-- =========================================================== -->
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.1.9</pluginVersion>
+    <pluginVersion>1.2.0</pluginVersion>
     <mirthVersion>4.5.2</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol.
@@ -71,19 +71,36 @@ Transport-agnostic: works with TCP Listener / TCP Sender and Serial Connector.</
 
     <!-- =========================================================== -->
     <!-- Server-side classes (loaded by the Mirth Server process)   -->
-    <!-- Each <string> is the FQCN of a server-side plugin class.    -->
+    <!-- Each <string> is the FQCN of a server-side plugin class    -->
+    <!-- OR a class that needs XStream deserialization registration. -->
+    <!--                                                              -->
+    <!-- IMPORTANT: the Properties subclass MUST be listed here so    -->
+    <!-- that Mirth's ExtensionController registers it with XStream's -->
+    <!-- security framework. Without this registration, XStream      -->
+    <!-- rejects the class at channel-deserialization time with:      -->
+    <!--   ForbiddenClassException:                                   -->
+    <!--   com.bitdreamit....ASTME1381TransmissionModeProperties    -->
+    <!-- See CHANGELOG.md v1.2.0 for the full root-cause analysis. -->
     <!-- =========================================================== -->
     <serverClasses>
         <string>com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin</string>
+        <string>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</string>
     </serverClasses>
 
     <!-- =========================================================== -->
     <!-- Client-side classes (loaded by the Mirth Administrator UI)  -->
-    <!-- Each <string> is the FQCN of a client-side plugin class.   -->
+    <!-- Each <string> is the FQCN of a client-side plugin class OR  -->
+    <!-- a class that needs XStream deserialization registration.     -->
+    <!--                                                              -->
+    <!-- The Properties subclass is listed here too because the       -->
+    <!-- Administrator UI deserializes channel XML locally when      -->
+    <!-- editing/viewing channels - the client-side XStream instance  -->
+    <!-- needs the class registered too.                             -->
     <!-- =========================================================== -->
     <clientClasses>
         <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin</string>
         <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider</string>
+        <string>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</string>
     </clientClasses>
 
     <!-- =========================================================== -->
