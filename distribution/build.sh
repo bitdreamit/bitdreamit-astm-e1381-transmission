@@ -171,16 +171,30 @@ build() {
     #    Note: the plugin.xml and transmissionmode.xml are NO LONGER
     #    bundled inside the JARs - they are deployed as separate files
     #    at the extension folder root (Mirth Connect 4.x convention).
+    #
+    #    We MERGE the shared + server class directories into a single
+    #    staging directory before packaging. This avoids the JDK 8
+    #    "jar" tool's "duplicate entry: com/" ZipException that occurs
+    #    when using two -C options on directories that both contain a
+    #    com/ subtree. (JDK 9+ "jar" merges duplicate directory entries
+    #    automatically; JDK 8 does not.)
     echo "[build] packaging server jar..."
+    rm -rf "$OUT_DIR/server-jar"
+    mkdir -p "$OUT_DIR/server-jar"
+    cp -r "$OUT_DIR/shared/." "$OUT_DIR/server-jar/"
+    cp -r "$OUT_DIR/server/." "$OUT_DIR/server-jar/"
     jar cf "$OUT_DIR/bitdreamit-astm-e1381-transmission-server.jar" \
-        -C "$OUT_DIR/shared" . \
-        -C "$OUT_DIR/server" .
+        -C "$OUT_DIR/server-jar" .
 
     # 7. Package client jar (shared classes + client classes)
+    #    Same merge-into-staging approach as rule #6 above.
     echo "[build] packaging client jar..."
+    rm -rf "$OUT_DIR/client-jar"
+    mkdir -p "$OUT_DIR/client-jar"
+    cp -r "$OUT_DIR/shared/." "$OUT_DIR/client-jar/"
+    cp -r "$OUT_DIR/client/." "$OUT_DIR/client-jar/"
     jar cf "$OUT_DIR/bitdreamit-astm-e1381-transmission-client.jar" \
-        -C "$OUT_DIR/shared" . \
-        -C "$OUT_DIR/client" .
+        -C "$OUT_DIR/client-jar" .
 
     # 8. Copy the two production XML files to the output directory
     #    so the out/ folder is a drop-in Mirth extension folder.

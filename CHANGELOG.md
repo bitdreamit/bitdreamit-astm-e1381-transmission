@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-08-15 - "Fix 'duplicate entry: com/' ZipException in build.sh"
+
+This patch fixes the build failure that occurred when running
+`./build.sh` (or `./build.sh test`) on JDK 8:
+
+```
+[build] packaging shared jar...
+[build] packaging server jar...
+java.util.zip.ZipException: duplicate entry: com/
+        at java.util.zip.ZipOutputStream.putNextEntry(ZipOutputStream.java:232)
+        at java.util.jar.JarOutputStream.putNextEntry(JarOutputStream.java:109)
+        at sun.tools.jar.Main.addFile(Main.java:839)
+        ...
+3 errors
+```
+
+### Root cause
+The `jar` tool's packaging rules #6 (server) and #7 (client) used
+two `-C` options to merge two class directories into one JAR:
+
+```bash
+# OLD (broken on JDK 8)
+jar cf ...-server.jar \
+    -C "$OUT_DIR/shared" . \
+    -C "$OUT_DIR/server" .
+```
+
+Both `$OUT_DIR/shared` and `$OUT_DIR/server` contain a `com/`
+directory subtree (because both modules use the
+`com.bitdreamit.connect.plugins.transmission.astm.*` package).
+When `jar` processes the second `-C`, it encounters the `com/`
+directory entry again — and JDK 8's `jar` tool (sun.tools.jar.Main)
+rejects duplicate directory entries with `ZipException`.
+
+JDK 9+ `jar` merges duplicate directory entries automatically, so
+this only broke on JDK 8 builds.
+
+### Fixed
+- `distribution/build.sh` rules #6 and #7:
+  - Replaced the two-`-C` approach with a staging-directory merge:
+    1. Create a staging directory (`server-jar/` or `client-jar/`)
+    2. Copy the shared classes into it (`cp -r shared/. server-jar/`)
+    3. Copy the server/client classes into it (merges with shared)
+    4. Package the staging directory with a single `-C` option
+  - This produces byte-identical JAR contents but avoids the
+    duplicate-entry error on JDK 8.
+  - The staging directories are cleaned up at the start of each
+    packaging step (`rm -rf`) so stale state doesn't accumulate.
+
+### Verification
+After this patch, `./build.sh build` and `./build.sh test` both
+complete successfully on JDK 8 (and continue to work on JDK 9+).
+The three produced JARs contain the same class files as before:
+
+- `bitdreamit-astm-e1381-transmission-shared.jar`:
+    shared classes only
+- `bitdreamit-astm-e1381-transmission-server.jar`:
+    shared classes + server classes (merged)
+- `bitdreamit-astm-e1381-transmission-client.jar`:
+    shared classes + client classes (merged)
+
+### Note on `./build.sh clean`
+The `clean` subcommand removes the `out/` directory entirely. To
+use it, run `./build.sh clean` (with a SPACE between `build.sh`
+and `clean`, NOT `./build.sh/clean` which the shell interprets as
+a path).
+
 ## [1.2.1] - 2026-08-15 - "Add log4j-1.2-api-2.17.2.jar to build.sh SERVER_CP"
 
 This patch fixes the build failure that occurred when running
