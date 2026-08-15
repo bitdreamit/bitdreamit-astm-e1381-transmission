@@ -306,7 +306,46 @@ move the code to the server-side `StreamHandler` instead.
 
 ## Build & Deploy
 
-### Option A - shell script
+### Option A - IntelliJ IDEA Build Artifacts (recommended for development)
+
+The project ships three pre-configured **Artifact** definitions in
+`.idea/artifacts/`. Each produces one of the three extension JARs
+that Mirth Connect expects:
+
+| Artifact name | Output JAR | Contents |
+|---------------|------------|----------|
+| `bitdreamit-astm-e1381-transmission-shared` | `out/artifacts/bitdreamit_astm_e1381_transmission_shared/bitdreamit-astm-e1381-transmission-shared.jar` | shared module classes |
+| `bitdreamit-astm-e1381-transmission-server` | `out/artifacts/bitdreamit_astm_e1381_transmission_server/bitdreamit-astm-e1381-transmission-server.jar` | shared + server classes + `server/resources/` |
+| `bitdreamit-astm-e1381-transmission-client` | `out/artifacts/bitdreamit_astm_e1381_transmission_client/bitdreamit-astm-e1381-transmission-client.jar` | shared + client classes + `client/resources/` |
+
+**To build all three JARs:**
+
+1. In IntelliJ IDEA, open the project (`File → Open`).
+2. Make sure all four modules compile cleanly:
+   `Build → Rebuild Project` (Ctrl+Shift+F9).
+3. From the menu: `Build → Build Artifacts...`
+4. In the popup, pick **All Artifacts → Build** (or build each
+   artifact individually: `Build`, then repeat for the other two).
+5. The three JARs appear under `out/artifacts/`:
+
+   ```
+   out/artifacts/bitdreamit_astm_e1381_transmission_shared/bitdreamit-astm-e1381-transmission-shared.jar
+   out/artifacts/bitdreamit_astm_e1381_transmission_server/bitdreamit-astm-e1381-transmission-server.jar
+   out/artifacts/bitdreamit_astm_e1381_transmission_client/bitdreamit-astm-e1381-transmission-client.jar
+   ```
+
+**To rebuild a single artifact on every `Make Project`:**
+right-click the artifact in `File → Project Structure → Artifacts`
+and check **"Build on make"**, or set `build-on-make="true"` in the
+artifact's XML file. Off by default so that `Make Project` does not
+re-zip the JARs every time you save a source file.
+
+**Editing the artifact definitions:**
+`File → Project Structure → Artifacts` opens a visual editor. The
+underlying XML files live at `.idea/artifacts/*.xml` and are committed
+to version control so the whole team uses the same definitions.
+
+### Option B - shell script (CI / headless builds)
 
 ```bash
 cd distribution
@@ -316,7 +355,12 @@ chmod +x build.sh
 ./build.sh test       # build + run JUnit tests
 ```
 
-### Option B - Maven (optional)
+The shell script produces byte-identical JARs to the IntelliJ IDEA
+Build Artifacts approach (same module outputs, same resource
+directories, same JAR names). Use the IDE for development, use the
+shell script for CI / Docker / headless builds.
+
+### Option C - Maven (optional)
 
 ```bash
 mvn -Dmirth.libs=$HOME/mirth-libs clean package
@@ -324,21 +368,52 @@ mvn -Dmirth.libs=$HOME/mirth-libs clean package
 The `pom.xml` declares Mirth jars as `system`-scope dependencies under
 `${mirth.libs}` so you don't need to install them to a local Maven repo.
 
+> **Note:** Maven produces JARs at `<module>/target/*.jar` rather than
+> `out/artifacts/`. The downstream Mirth deploy step is the same —
+> just adjust the source path when copying to `$MIRTH_HOME/extensions/`.
+
 ### Deploy to Mirth
+
+The production extension folder needs exactly **5 files**:
+
+```
+$MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
+├── plugin.xml                                       (extension descriptor)
+├── transmissionmode.xml                             (transmission mode descriptor)
+├── bitdreamit-astm-e1381-transmission-shared.jar    (shared classes)
+├── bitdreamit-astm-e1381-transmission-server.jar    (server classes + shared)
+└── bitdreamit-astm-e1381-transmission-client.jar    (client classes + shared)
+```
+
+**Two XML files, three JAR files — that's it.** The split `server-plugin.xml` +
+`client-plugin.xml` layout used in older versions is no longer needed; Mirth
+Connect 4.x reads a single consolidated `plugin.xml` that declares both
+`<serverClasses>` and `<clientClasses>` blocks.
+
+#### Option A - manual copy
 
 ```bash
 MIRTH_HOME=/opt/mirth-connect
+EXT_DIR=$MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission
 
-mkdir -p $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission
-cp out/bitdreamit-astm-e1381-transmission-shared.jar  $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
-cp out/bitdreamit-astm-e1381-transmission-server.jar $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
-cp out/bitdreamit-astm-e1381-transmission-client.jar $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
-cp transmissionmode.xml                              $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
-cp server/resources/plugin.xml                       $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/server-plugin.xml
-cp client/resources/plugin.xml                       $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/client-plugin.xml
+mkdir -p $EXT_DIR
+cp out/artifacts/bitdreamit_astm_e1381_transmission_shared/bitdreamit-astm-e1381-transmission-shared.jar  $EXT_DIR/
+cp out/artifacts/bitdreamit_astm_e1381_transmission_server/bitdreamit-astm-e1381-transmission-server.jar $EXT_DIR/
+cp out/artifacts/bitdreamit_astm_e1381_transmission_client/bitdreamit-astm-e1381-transmission-client.jar $EXT_DIR/
+cp plugin.xml             $EXT_DIR/
+cp transmissionmode.xml   $EXT_DIR/
 
-# Restart Mirth service
 sudo systemctl restart mirth-connect
+```
+
+#### Option B - deploy.sh helper (assembles + optionally zips/installs)
+
+```bash
+cd distribution
+./deploy.sh             # build JARs + assemble out/bitdreamit-astm-e1381-transmission/
+./deploy.sh zip         # also produce out/bitdreamit-astm-e1381-transmission.zip
+./deploy.sh install     # also copy directly to $MIRTH_HOME/extensions/
+                        #   (requires MIRTH_HOME env var)
 ```
 
 After Mirth restarts, the new **ASTM E1381** transmission mode will appear in

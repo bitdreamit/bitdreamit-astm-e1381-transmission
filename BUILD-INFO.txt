@@ -1,6 +1,6 @@
 ============================================================
 bitdreamit-astm-e1381-transmission
-Production-hardened release v1.1.6
+Production-hardened release v1.1.7
 Built: 2026-08-15
 ============================================================
 
@@ -11,64 +11,114 @@ that prevented compilation and correct deployment. See CHANGELOG.md
 for the full per-version history.
 
 ============================================================
+PRODUCTION FILE INVENTORY (5 files)
+============================================================
+
+A production Mirth Connect 4.x extension folder contains exactly
+FIVE files - two XML descriptors and three JARs:
+
+  $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
+  |-- plugin.xml                                       (extension descriptor)
+  |-- transmissionmode.xml                             (transmission mode descriptor)
+  |-- bitdreamit-astm-e1381-transmission-shared.jar    (shared classes)
+  |-- bitdreamit-astm-e1381-transmission-server.jar    (server classes + shared)
+  `-- bitdreamit-astm-e1381-transmission-client.jar    (client classes + shared)
+
+XML files (2 required):
+  - plugin.xml            : main extension descriptor. Declares the
+                           plugin name, version, author, and which
+                           classes to load on the server side
+                           (<serverClasses>) and client side
+                           (<clientClasses>). Mirth Connect 4.x
+                           reads this single file - the older split
+                           layout (server-plugin.xml + client-plugin.xml)
+                           is no longer needed.
+  - transmissionmode.xml  : transmission-mode-specific descriptor.
+                           Declares the server-side class name
+                           (TransmissionModePlugin subclass), the
+                           client-side class name
+                           (TransmissionModeClientPlugin subclass),
+                           the shared class name
+                           (TransmissionModeProperties subclass),
+                           and the JAR file names.
+
+JAR files (3 required):
+  - bitdreamit-astm-e1381-transmission-shared.jar
+      Contains: ASTME1381Constants, ASTME1381Frame,
+      ASTME1381FrameException, ASTME1381RetryMetrics,
+      ASTME1381TransmissionModeProperties. Bundled INSIDE both
+      server.jar and client.jar, so standalone deployment of this
+      JAR is OPTIONAL (Mirth's classloader will find the classes
+      via the server/client JARs).
+  - bitdreamit-astm-e1381-transmission-server.jar
+      Contains: shared classes + server module classes
+      (ASTME1381StreamHandler, ASTME1381TransmissionModePlugin).
+      Loaded by the Mirth Server process.
+  - bitdreamit-astm-e1381-transmission-client.jar
+      Contains: shared classes + client module classes
+      (ASTME1381ClientProvider,
+      ASTME1381TransmissionModeClientPlugin,
+      ASTME1381TransmissionModeSettingsPanel).
+      Loaded by the Mirth Administrator UI process.
+
+SIGNING: not required for Mirth Connect 4.x by default. Signing
+is only needed if your Mirth instance is explicitly configured to
+enforce signed extensions (rare). The standard deployment is
+unsigned.
+
+============================================================
 RECENT FIX HISTORY (newest first)
 ============================================================
 
-v1.1.6 (this release)
+v1.1.7 (this release)
+  - Consolidated the two split XML files (server-plugin.xml +
+    client-plugin.xml) into a single root-level plugin.xml.
+    Mirth Connect 4.x reads this single file at extension-load
+    time; the split layout was an older Mirth 3.x convention.
+  - JAR packaging rules updated: plugin.xml and transmissionmode.xml
+    are no longer bundled inside the JARs. They are deployed as
+    separate files at the extension folder root (Mirth 4.x
+    convention).
+  - Added distribution/deploy.sh helper script. Supports three
+    modes: build (assemble extension folder), zip (also produce
+    a .zip), install (also copy directly to $MIRTH_HOME/extensions/).
+  - IntelliJ IDEA artifact XMLs updated to no longer bundle
+    server/resources/ or client/resources/ inside the JARs.
+  - README.md and PRODUCTION.md rewritten with the simplified
+    5-file production layout (2 XML + 3 JARs).
+
+v1.1.6
   - Removed the send() method and all its wire-protocol helpers
-    from ASTME1381ClientProvider. Mirth Connect 4.5.2's
-    TransmissionModeClientProvider does NOT declare a send() method
-    (the wire protocol is the server side's responsibility), so the
-    @Override annotation failed to compile.
-  - The full ASTM E1381-02 wire protocol (ENQ / ACK / NAK / EOT /
-    framing / checksum) remains in the server-side
-    ASTME1381StreamHandler.write(byte[]) method, which is unchanged.
-    No functionality is lost.
-  - The client provider now correctly implements only the eight
-    abstract methods declared on TransmissionModeClientProvider:
-    getSampleLabel, getSampleValue, getProperties,
-    getDefaultProperties, setProperties, checkProperties,
-    resetInvalidProperties, getSettingsComponent.
+    from ASTME1381ClientProvider. Mirth 4.5.2's
+    TransmissionModeClientProvider does NOT declare a send() method.
+  - The full wire protocol remains in the server-side
+    ASTME1381StreamHandler.write(byte[]).
 
 v1.1.5
   - Added miglayout-core-4.2.jar to the IntelliJ mirth-client library.
-    MigLayout 4.2 ships as TWO jars (core + swing); the swing jar's
-    MigLayout class references net.miginfocom.layout.LC (which lives
-    in core) at construction time. Without BOTH jars the client module
-    fails to compile with "cannot access net.miginfocom.layout.LC".
-  - Properly implemented the five additional abstract methods declared
-    on TransmissionModeClientProvider (Mirth 4.5+): getProperties,
+  - Implemented the five additional abstract methods on
+    TransmissionModeClientProvider: getProperties,
     getDefaultProperties, checkProperties, resetInvalidProperties,
     getSettingsComponent.
-  - Updated pom.xml, client/pom.xml, and distribution/build.sh to
-    declare miglayout-core and miglayout-swing 4.2 dependencies.
 
 v1.1.4
   - Added the required getSampleLabel() override.
-  - Added send(OutputStream, InputStream, String) - WRONG: this method
-    is not on TransmissionModeClientProvider in Mirth 4.5.2. Fixed
-    in v1.1.6 by removing it.
 
 v1.1.3
   - Fixed wrong base class names:
-      * server/ASTME1381TransmissionModePlugin now extends
+      * server/ASTME1381TransmissionModePlugin extends
         TransmissionModeProvider (server-side).
-      * client/ASTME1381TransmissionModeClientPlugin now extends
+      * client/ASTME1381TransmissionModeClientPlugin extends
         TransmissionModePlugin (client-side).
-      * Deleted server/ASTME1381ServerProvider.java (extended a
-        non-existent TransmissionModeServerProvider; the receive flow
-        already lives in ASTME1381StreamHandler.read()).
-      * Added required createProvider() override on the client plugin.
+      * Deleted server/ASTME1381ServerProvider.java.
 
 v1.1.2
   - Removed phantom @Override from getPropertyDescriptors() and
     setProperties(Map) on ASTME1381TransmissionModeProperties.
 
 v1.1.1
-  - Added donkey-server.jar to the IntelliJ mirth-server library
-    (it contains com.mirth.connect.donkey.util.purge.Purgable,
-    which TransmissionModeProperties implements).
-  - Added module-level pom.xml files (shared, server, client, test).
+  - Added donkey-server.jar to the IntelliJ mirth-server library.
+  - Added module-level pom.xml files.
   - Added stubs/ directory with a compile-time-only Purgable
     interface for environments where donkey-server.jar is unavailable.
 
@@ -77,10 +127,6 @@ v1.1.0
     NAKs, thread-safe RetryMetrics, per-phase configurable timeouts,
     Log4j structured logging, null-safe property parsing, defensive
     copies of frame payloads, 30 JUnit tests.
-  - Moved shared classes (Properties, Frame, FrameException,
-    RetryMetrics) to the shared module.
-  - Moved ASTME1381ClientProvider from server/ to client/.
-  - Fixed transmissionmode.xml and plugin.xml class/jar references.
 
 v1.0.0 (original release)
   - Multiple inconsistencies prevented compilation and deployment.
@@ -153,26 +199,48 @@ BUILD
 
 2. Provide Mirth Connect 4.5+ jars at ../mirth-libs/ (see above).
 
-3. Build using one of:
+3. Build the three production JARs using one of:
 
-   a) IntelliJ IDEA:
-        File -> Open this directory
-        Build -> Rebuild Project (Ctrl+Shift+F9)
-        The .idea/libraries/*.xml files already wire up the jar paths
-        listed above; just make sure the files exist on disk.
+   a) IntelliJ IDEA Build Artifacts (recommended for development):
 
-   b) Shell script:
+        i.   File -> Open this directory in IntelliJ IDEA.
+        ii.  Build -> Rebuild Project (Ctrl+Shift+F9) to compile all
+             four modules (shared, server, client, test).
+        iii. Build -> Build Artifacts... -> All Artifacts -> Build.
+
+      Three pre-configured artifact definitions live in
+      .idea/artifacts/. After the build, the JARs are at:
+        out/artifacts/bitdreamit_astm_e1381_transmission_shared/*.jar
+        out/artifacts/bitdreamit_astm_e1381_transmission_server/*.jar
+        out/artifacts/bitdreamit_astm_e1381_transmission_client/*.jar
+
+      You also need to copy the two XML files from the project root
+      to the extension folder:
+        cp plugin.xml             <extension-folder>/
+        cp transmissionmode.xml   <extension-folder>/
+
+   b) Shell script (CI / headless builds):
         cd distribution && ./build.sh
-        # outputs jars to ../out/
+        # outputs JARs + XML to ../out/
         # subcommands: clean, build, test, rebuild
 
-   c) Maven:
-        mvn -Dmirth.libs=$HOME/mirth-libs clean package
+   c) Deploy helper (assembles ready-to-drop extension folder):
+        cd distribution
+        ./deploy.sh             # build + assemble ../out/<ext-name>/
+        ./deploy.sh zip         # also produce ../out/<ext-name>.zip
+        ./deploy.sh install     # also copy to $MIRTH_HOME/extensions/
+                                #   (requires MIRTH_HOME env var)
 
-4. Output jars in ../out/:
+   d) Maven:
+        mvn -Dmirth.libs=$HOME/mirth-libs clean package
+        # outputs JARs to <module>/target/
+
+4. Output (5 production files):
      bitdreamit-astm-e1381-transmission-shared.jar
      bitdreamit-astm-e1381-transmission-server.jar
      bitdreamit-astm-e1381-transmission-client.jar
+     plugin.xml
+     transmissionmode.xml
 
 ============================================================
 DEPLOY TO MIRTH CONNECT
@@ -181,14 +249,24 @@ DEPLOY TO MIRTH CONNECT
   MIRTH_HOME=/opt/mirth-connect
   EXT_DIR=$MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission
 
-  mkdir -p $EXT_DIR
-  cp out/*.jar $EXT_DIR/
-  cp transmissionmode.xml $EXT_DIR/
-  cp server/resources/plugin.xml $EXT_DIR/server-plugin.xml
-  cp client/resources/plugin.xml $EXT_DIR/client-plugin.xml
+  sudo systemctl stop mirth-connect
 
-  # Restart Mirth service
-  sudo systemctl restart mirth-connect
+  # Back up existing extension (if upgrading)
+  [ -d "$EXT_DIR.bak" ] && rm -rf "$EXT_DIR.bak"
+  [ -d "$EXT_DIR" ] && mv "$EXT_DIR" "$EXT_DIR.bak"
+
+  # Install the 5 production files
+  mkdir -p "$EXT_DIR"
+  cp out/bitdreamit-astm-e1381-transmission-shared.jar  "$EXT_DIR/"
+  cp out/bitdreamit-astm-e1381-transmission-server.jar "$EXT_DIR/"
+  cp out/bitdreamit-astm-e1381-transmission-client.jar "$EXT_DIR/"
+  cp plugin.xml             "$EXT_DIR/"
+  cp transmissionmode.xml   "$EXT_DIR/"
+
+  sudo systemctl start mirth-connect
+
+  # Verify the extension loaded
+  sudo grep -A2 "ASTM E1381" /opt/mirth-connect/logs/mirth.log
 
 After Mirth restarts, the new "ASTM E1381" transmission mode will
 appear in the channel editor under:
