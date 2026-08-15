@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-08-15 - "Add log4j-1.2-api-2.17.2.jar to build.sh SERVER_CP"
+
+This patch fixes the build failure that occurred when running
+`./build.sh test` (or `./build.sh build`) on a fresh checkout:
+
+```
+[build] compiling server...
+ASTME1381StreamHandler.java:9: error: package org.apache.log4j does not exist
+import org.apache.log4j.Logger;
+                       ^
+ASTME1381StreamHandler.java:23: error: cannot find symbol
+    private Logger logger = Logger.getLogger(this.getClass());
+            ^
+  symbol:   class Logger
+  location: class ASTME1381StreamHandler
+3 errors
+```
+
+### Root cause
+The server module's `ASTME1381StreamHandler.java` imports
+`org.apache.log4j.Logger` for structured logging. In Mirth Connect
+4.5.2, `org.apache.log4j.Logger` is a **bridge class** that ships
+in `log4j-1.2-api-2.17.2.jar` — it delegates to Log4j 2.x internally
+via `org.apache.logging.log4j.LogManager`. (Confirmed by the user
+providing the decompiled source of the class.)
+
+The IntelliJ IDEA project library `.idea/libraries/mirth_server.xml`
+already listed this JAR, so building via **IntelliJ IDEA → Build →
+Build Artifacts** worked correctly. But `distribution/build.sh`
+omitted it from `SERVER_CP`, so building via **`./build.sh`** failed
+with "package org.apache.log4j does not exist".
+
+This was a classic IDE-vs-CLI classpath divergence.
+
+### Fixed
+- `distribution/build.sh`:
+  - Added a `LOG4J_API_JAR` variable pointing at
+    `${SERVER_LIB}/log4j-1.2-api-2.17.2.jar`.
+  - Appended `:$LOG4J_API_JAR` to `SERVER_CP`.
+  - Added a long comment explaining why the server module needs this
+    JAR and why the client module does NOT (since v1.1.6 removed
+    the Logger import from `ASTME1381ClientProvider`).
+  - Note: `TEST_CP` is built as `$SERVER_CP:$TEST_LIB/...`, so the
+    log4j JAR is automatically on the test classpath too (needed
+    when running JUnit tests that exercise the server module).
+- `pom.xml` (parent):
+  - Added `log4j12api.version` property = `2.17.2`.
+  - Replaced the Maven Central declaration of `log4j-1.2-api`
+    (version 2.22.1, no scope) with a system-scoped declaration
+    pointing at `${mirth.libs}/server/log4j-1.2-api-${log4j12api.version}.jar`,
+    matching the JAR file actually shipped with Mirth Connect 4.5.2.
+  - Added an explanatory comment block above the dependency.
+- `README.md` "IntelliJ IDEA Setup" section:
+  - Added `log4j-1.2-api-2.17.2.jar` to the `mirth-libs/server/`
+    file list.
+  - Updated the `mirth-server` library definition to include the JAR.
+  - Added a "Critical:" callout explaining the `package org.apache.log4j
+    does not exist` failure mode.
+  - Also noted that the same JAR ships under `mirth-libs/client/`
+    (Mirth ships it in both folders) but the client module does
+    NOT need it since v1.1.6.
+
+### Verification
+After this patch, `./build.sh build` and `./build.sh test` both
+complete successfully on a fresh checkout that has all the required
+Mirth JARs at `../mirth-libs/{server,client,test}/`. The IntelliJ
+IDEA build was already working and continues to work unchanged.
+
 ## [1.2.0] - 2026-08-15 - "Register Properties class with XStream security framework"
 
 This patch fixes the runtime error that occurred when a user tried to

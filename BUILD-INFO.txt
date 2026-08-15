@@ -1,6 +1,6 @@
 ============================================================
 bitdreamit-astm-e1381-transmission
-Production-hardened release v1.2.0
+Production-hardened release v1.2.1
 Built: 2026-08-15
 ============================================================
 
@@ -11,63 +11,32 @@ that prevented compilation and correct deployment. See CHANGELOG.md
 for the full per-version history.
 
 ============================================================
-PRODUCTION FILE INVENTORY (5 files)
-============================================================
-
-A production Mirth Connect 4.x extension folder contains exactly
-FIVE files - two XML descriptors and three JARs:
-
-  $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
-  |-- plugin.xml                                       (extension descriptor)
-  |-- transmissionmode.xml                             (transmission mode descriptor)
-  |-- bitdreamit-astm-e1381-transmission-shared.jar    (shared classes)
-  |-- bitdreamit-astm-e1381-transmission-server.jar    (server classes + shared)
-  `-- bitdreamit-astm-e1381-transmission-client.jar    (client classes + shared)
-
-XML files (2 required):
-  - plugin.xml            : main extension descriptor. Uses the Mirth
-                           Connect 4.5.2 format with <string>
-                           elements inside <serverClasses> /
-                           <clientClasses> (List<String> of FQCNs)
-                           and top-level <library type="..."
-                           path="..." /> elements. Lists the
-                           Properties subclass in BOTH class lists
-                           so XStream's security framework allows
-                           deserialization (see v1.2.0 CHANGELOG).
-  - transmissionmode.xml  : transmission-mode-specific descriptor.
-                           Declares the server-side class name
-                           (TransmissionModePlugin subclass), the
-                           client-side class name
-                           (TransmissionModeClientPlugin subclass),
-                           the shared class name
-                           (TransmissionModeProperties subclass),
-                           and the JAR file names.
-
-JAR files (3 required):
-  - bitdreamit-astm-e1381-transmission-shared.jar
-  - bitdreamit-astm-e1381-transmission-server.jar
-  - bitdreamit-astm-e1381-transmission-client.jar
-
-SIGNING: not required for Mirth Connect 4.x by default. Signing
-is only needed if your Mirth instance is explicitly configured to
-enforce signed extensions (rare). The standard deployment is
-unsigned.
-
-============================================================
 RECENT FIX HISTORY (newest first)
 ============================================================
 
-v1.2.0 (this release)
+v1.2.1 (this release)
+  - Added log4j-1.2-api-2.17.2.jar to distribution/build.sh's
+    SERVER_CP. The server module imports org.apache.log4j.Logger
+    (used by ASTME1381StreamHandler.java for logging). In Mirth
+    Connect 4.5.2, org.apache.log4j.Logger is a bridge class that
+    ships in log4j-1.2-api-2.17.2.jar - it delegates to Log4j 2.x
+    via org.apache.logging.log4j.LogManager. Without this JAR on
+    the server compile classpath, javac fails with:
+      "package org.apache.log4j does not exist"
+      "cannot find symbol: class Logger"
+    IntelliJ IDEA was already working because .idea/libraries/
+    mirth_server.xml listed the JAR; the build.sh gap caused
+    "compiles in IDE, fails via ./build.sh" - a classic IDE-vs-CLI
+    classpath divergence.
+  - Updated parent pom.xml: changed log4j-1.2-api version from
+    2.22.1 (Maven Central) to 2.17.2 (Mirth-shipped, system-scoped).
+  - Updated README prerequisites to mention log4j-1.2-api-2.17.2.jar.
+
+v1.2.0
   - Added ASTME1381TransmissionModeProperties to <serverClasses>
-    AND <clientClasses> in all three plugin.xml files. Without this,
-    XStream's security framework (NoTypePermission in XStream 1.4.x)
-    rejects the Properties class at channel-deserialization time with
-    ForbiddenClassException. The transmissionmode.xml's
-    <sharedClassName> only tells Mirth's transmission-mode framework
-    about the class - it does NOT register it with XStream. Only
-    classes listed in plugin.xml's <serverClasses> / <clientClasses>
-    get XStream-registered.
-  - Bumped pluginVersion to 1.2.0.
+    AND <clientClasses> in all three plugin.xml files so XStream's
+    security framework allows deserialization (was failing with
+    ForbiddenClassException at channel-load time).
 
 v1.1.9
   - Completely rewrote all three plugin.xml files to use the actual
@@ -83,6 +52,9 @@ v1.1.7
 
 v1.1.6
   - Removed the send() method from ASTME1381ClientProvider.
+    (Also removed the Logger import from the client module - that
+    is why the client module does NOT need log4j-1.2-api on its
+    classpath in v1.2.1+.)
 
 v1.1.5
   - Added miglayout-core-4.2.jar. Implemented 5 abstract methods on
@@ -111,43 +83,20 @@ v1.0.0 (original release)
   - Multiple inconsistencies prevented compilation and deployment.
 
 ============================================================
-CORRECT plugin.xml FORMAT (Mirth Connect 4.5.2)
+PRODUCTION FILE INVENTORY (5 files)
 ============================================================
 
-This is the format used by all three plugin.xml files in v1.2.0+.
-It matches the format Mirth uses for its own built-in plugins
-(e.g. datatype-hl7v3), with the addition that the Properties
-subclass is listed in BOTH <serverClasses> and <clientClasses>
-(see v1.2.0 CHANGELOG for why):
+A production Mirth Connect 4.x extension folder contains exactly
+FIVE files - two XML descriptors and three JARs:
 
-  <pluginMetaData path="bitdreamit-astm-e1381-transmission">
-      <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
-      <author>Bit Dream IT</author>
-      <pluginVersion>1.2.0</pluginVersion>
-      <mirthVersion>4.5.2</mirthVersion>
-      <url>https://bitdreamit.com</url>
-      <description>...</description>
-      <serverClasses>
-          <string>com.bitdreamit...ASTME1381TransmissionModePlugin</string>
-          <string>com.bitdreamit...ASTME1381TransmissionModeProperties</string>
-      </serverClasses>
-      <clientClasses>
-          <string>com.bitdreamit...ASTME1381TransmissionModeClientPlugin</string>
-          <string>com.bitdreamit...ASTME1381ClientProvider</string>
-          <string>com.bitdreamit...ASTME1381TransmissionModeProperties</string>
-      </clientClasses>
-      <library type="CLIENT" path="bitdreamit-astm-e1381-transmission-client.jar" />
-      <library type="SHARED" path="bitdreamit-astm-e1381-transmission-shared.jar" />
-      <library type="SERVER" path="bitdreamit-astm-e1381-transmission-server.jar" />
-  </pluginMetaData>
+  $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
+  |-- plugin.xml                                       (extension descriptor)
+  |-- transmissionmode.xml                             (transmission mode descriptor)
+  |-- bitdreamit-astm-e1381-transmission-shared.jar    (shared classes)
+  |-- bitdreamit-astm-e1381-transmission-server.jar    (server classes + shared)
+  `-- bitdreamit-astm-e1381-transmission-client.jar    (client classes + shared)
 
-Key points:
-  - <serverClasses> / <clientClasses> contain <string> elements
-    DIRECTLY (List<String> of FQCNs). NO <serverClass> wrapper.
-  - <library> elements are at the TOP LEVEL of <pluginMetaData>.
-  - The Properties subclass MUST be in BOTH <serverClasses> AND
-    <clientClasses> so XStream allows deserialization on both sides.
-  - <mirthVersion> is "4.5.2" (the actual tested version).
+SIGNING: not required for Mirth Connect 4.x by default.
 
 ============================================================
 ARCHITECTURE (client UI vs. server wire protocol)
@@ -159,8 +108,6 @@ CLIENT SIDE (Administrator UI process):
   ASTME1381ClientProvider
     extends TransmissionModeClientProvider
   ASTME1381TransmissionModeProperties (registered for XStream)
-  Responsibility: settings panel UI, sample messages,
-    property validation, default property provisioning.
 
 SERVER SIDE (Mirth Server process):
   ASTME1381TransmissionModePlugin
@@ -168,8 +115,7 @@ SERVER SIDE (Mirth Server process):
   ASTME1381StreamHandler
     extends StreamHandler
   ASTME1381TransmissionModeProperties (registered for XStream)
-  Responsibility: actual wire protocol - ENQ/ACK/NAK/EOT,
-    STX/FN/payload/ETX|ETB/checksum/CR/LF framing, retry, etc.
+  Uses: org.apache.log4j.Logger (from log4j-1.2-api-2.17.2.jar)
 
 ============================================================
 BUILD PREREQUISITES
@@ -180,6 +126,7 @@ jars at ../mirth-libs/:
 
     mirth-libs/server/mirth-server.jar
     mirth-libs/server/donkey-server.jar       <-- CRITICAL: contains Purgable
+    mirth-libs/server/log4j-1.2-api-2.17.2.jar <-- CRITICAL: contains org.apache.log4j.Logger (server module only)
     mirth-libs/client/mirth-client.jar
     mirth-libs/client/mirth-client-core.jar   <-- contains TransmissionModeProperties
     mirth-libs/client/miglayout-core-4.2.jar  <-- CRITICAL: contains net.miginfocom.layout.LC
@@ -188,8 +135,13 @@ jars at ../mirth-libs/:
     mirth-libs/test/hamcrest-core-1.3.jar
 
 CRITICAL JARS (build will fail without these):
-  - donkey-server.jar   -> missing it causes "cannot access Purgable"
-  - miglayout-core-4.2  -> missing it causes "cannot access LC"
+  - donkey-server.jar           -> "cannot access Purgable"
+  - miglayout-core-4.2          -> "cannot access net.miginfocom.layout.LC"
+  - log4j-1.2-api-2.17.2.jar    -> "package org.apache.log4j does not exist"
+
+Note: Mirth ships log4j-1.2-api-2.17.2.jar at BOTH server/ and
+client/ folders. Only the server/ copy is needed (since v1.1.6
+the client module does not import org.apache.log4j.Logger).
 
 ============================================================
 BUILD
@@ -212,6 +164,7 @@ BUILD
    b) Shell script:
         cd distribution && ./build.sh
         # outputs JARs + XML to ../out/
+        # subcommands: clean, build, test, rebuild
 
    c) Deploy helper:
         cd distribution
@@ -236,9 +189,6 @@ DEPLOY TO MIRTH CONNECT
 A) Install via the Mirth Administrator UI's Extension Manager:
    - Build + assemble via `./deploy.sh zip`.
    - Mirth Administrator: Extensions -> Extension Manager -> Install.
-   - v1.2.0 fixes: <string> elements (v1.1.9) + Properties class
-     in both class lists (v1.2.0) - together these make install
-     AND channel-load work without XStream errors.
 
 B) Manual file copy:
      MIRTH_HOME=/opt/mirth-connect

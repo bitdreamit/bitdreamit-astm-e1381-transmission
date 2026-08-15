@@ -37,6 +37,20 @@ SHARED_MODEL_JAR="$CLIENT_LIB/mirth-client-core.jar"
 # "cannot access com.mirth.connect.donkey.util.purge.Purgable".
 DONKEY_SERVER_JAR="$SERVER_LIB/donkey-server.jar"
 
+# log4j-1.2-api-2.17.2.jar is required by the server module because
+# ASTME1381StreamHandler.java imports org.apache.log4j.Logger. In Mirth
+# Connect 4.5.2, org.apache.log4j.Logger is a bridge class that ships in
+# log4j-1.2-api-2.17.2.jar (it delegates to Log4j 2.x internally via
+# org.apache.logging.log4j.LogManager). Without this JAR on the server
+# compile classpath, javac fails with "package org.apache.log4j does not
+# exist" when compiling ASTME1381StreamHandler.java.
+#
+# Note: Mirth ships log4j-1.2-api-2.17.2.jar at BOTH server/ and client/
+# folders. We use the server/ copy here for the SERVER_CP. The client
+# module does NOT use Log4j directly (since v1.1.6 removed the Logger
+# import from ASTME1381ClientProvider), so we don't need it in CLIENT_CP.
+LOG4J_API_JAR="$SERVER_LIB/log4j-1.2-api-2.17.2.jar"
+
 # MigLayout 4.2 ships as TWO jars in Mirth Connect 4.5.x:
 #   - miglayout-core-4.2.jar    -> net.miginfocom.layout.* (LC, AC, CC, ...)
 #   - miglayout-swing-4.2.jar   -> net.miginfocom.swing.MigLayout
@@ -55,11 +69,14 @@ SHARED_CP="$SHARED_MODEL_JAR:$DONKEY_SERVER_JAR"
 SERVER_CP="$SERVER_LIB/mirth-server.jar"
 SERVER_CP="$SERVER_CP:$DONKEY_SERVER_JAR"
 SERVER_CP="$SERVER_CP:$SHARED_MODEL_JAR"
+SERVER_CP="$SERVER_CP:$LOG4J_API_JAR"
 
 # Client-side classpath - includes donkey-server.jar for the same Purgable
 # reason: the shared module's TransmissionModeProperties is loaded transitively.
 # Also includes BOTH miglayout jars because the swing jar references LC
 # (which lives in the core jar).
+# Note: log4j-1.2-api-2.17.2.jar is NOT needed here - since v1.1.6 the
+# client module does not import org.apache.log4j.Logger.
 CLIENT_CP="$CLIENT_LIB/mirth-client.jar"
 CLIENT_CP="$CLIENT_CP:$DONKEY_SERVER_JAR"
 CLIENT_CP="$CLIENT_CP:$SHARED_MODEL_JAR"

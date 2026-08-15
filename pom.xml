@@ -26,6 +26,7 @@
         <mirth.libs>${user.home}/mirth-libs</mirth.libs>
         <mirth.version>4.5.2</mirth.version>
         <miglayout.version>4.2</miglayout.version>
+        <log4j12api.version>2.17.2</log4j12api.version>
         <junit.version>4.13.2</junit.version>
         <hamcrest.version>1.3</hamcrest.version>
         <maven.compiler.source>1.8</maven.compiler.source>
@@ -128,10 +129,27 @@
                 <scope>system</scope>
                 <systemPath>${mirth.libs}/client/miglayout-swing-${miglayout.version}.jar</systemPath>
             </dependency>
+            <!--
+                log4j-1.2-api-2.17.2.jar - the Log4j 1.x -> 2.x bridge.
+                Required by the server module because
+                ASTME1381StreamHandler.java imports org.apache.log4j.Logger.
+                In Mirth Connect 4.5.2, org.apache.log4j.Logger is a bridge
+                class that ships in this JAR (it delegates to Log4j 2.x
+                via org.apache.logging.log4j.LogManager). Without this JAR
+                on the server compile classpath, javac fails with
+                "package org.apache.log4j does not exist".
+
+                Mirth ships log4j-1.2-api-2.17.2.jar at BOTH server/ and
+                client/ folders. The server module needs the server/ copy;
+                the client module does NOT use Log4j directly (since v1.1.6
+                removed the Logger import from ASTME1381ClientProvider).
+            -->
             <dependency>
                 <groupId>org.apache.logging.log4j</groupId>
                 <artifactId>log4j-1.2-api</artifactId>
-                <version>2.22.1</version>
+                <version>${log4j12api.version}</version>
+                <scope>system</scope>
+                <systemPath>${mirth.libs}/server/log4j-1.2-api-${log4j12api.version}.jar</systemPath>
             </dependency>
             <dependency>
                 <groupId>junit</groupId>

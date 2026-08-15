@@ -65,20 +65,22 @@ bitdreamit-astm-e1381-transmission/
    ```
    ../mirth-libs/server/mirth-server.jar
    ../mirth-libs/server/donkey-server.jar        # REQUIRED - provides com.mirth.connect.donkey.util.purge.Purgable
+   ../mirth-libs/server/log4j-1.2-api-2.17.2.jar # REQUIRED by server module - provides org.apache.log4j.Logger (Log4j 1.x bridge to 2.x)
    ../mirth-libs/client/mirth-client.jar
-   ../mirth-libs/client/mirth-client-core.jar      # shared model classes (incl. TransmissionModeProperties)
-   ../mirth-libs/client/miglayout-core-4.2.jar      # REQUIRED by the client SettingsPanel - provides net.miginfocom.layout.LC
-   ../mirth-libs/client/miglayout-swing-4.2.jar     # provides net.miginfocom.swing.MigLayout
+   ../mirth-libs/client/mirth-client-core.jar   # shared model classes (incl. TransmissionModeProperties)
+   ../mirth-libs/client/log4j-1.2-api-2.17.2.jar # same jar, also shipped here (not needed by client module since v1.1.6)
+   ../mirth-libs/client/miglayout-core-4.2.jar  # REQUIRED by the client SettingsPanel - provides net.miginfocom.layout.LC
+   ../mirth-libs/client/miglayout-swing-4.2.jar # provides net.miginfocom.swing.MigLayout
    ../mirth-libs/test/junit-4.13.2.jar
    ../mirth-libs/test/hamcrest-core-1.3.jar
    ```
 
 2. In IntelliJ, declare three project-level libraries:
-   - `mirth-server` = `mirth-server.jar` + `donkey-server.jar` + `mirth-client-core.jar`
+   - `mirth-server` = `mirth-server.jar` + `donkey-server.jar` + `mirth-client-core.jar` + `log4j-1.2-api-2.17.2.jar`
    - `mirth-client` = `mirth-client.jar` + `mirth-client-core.jar` + `miglayout-core-4.2.jar` + `miglayout-swing-4.2.jar`
    - `junit-4`      = `junit-4.13.2.jar` + `hamcrest-core-1.3.jar`
 
-   > **Critical:** BOTH MigLayout jars are required.
+   > **Critical:** BOTH MigLayout jars are required by the client module.
    > `miglayout-swing`'s `MigLayout` class internally references
    > `net.miginfocom.layout.LC` (which lives in `miglayout-core`).
    > Without `miglayout-core` on the classpath, javac fails with:
@@ -87,6 +89,14 @@ bitdreamit-astm-e1381-transmission/
    > **Critical:** `donkey-server.jar` MUST be in the `mirth-server` library.
    > Without it, the `shared` module fails to compile with cascading
    > `cannot access com.mirth.connect.donkey.util.purge.Purgable` errors.
+   >
+   > **Critical:** `log4j-1.2-api-2.17.2.jar` MUST be in the `mirth-server`
+   > library. Without it, the `server` module fails to compile with
+   > `package org.apache.log4j does not exist` when compiling
+   > `ASTME1381StreamHandler.java` (which imports `org.apache.log4j.Logger`).
+   > In Mirth 4.5.2, `org.apache.log4j.Logger` is a bridge class that
+   > ships in this JAR — it delegates to Log4j 2.x via
+   > `org.apache.logging.log4j.LogManager`.
    > See **Troubleshooting** below.
 
 3. Open this folder in IntelliJ IDEA (`File → Open`).
