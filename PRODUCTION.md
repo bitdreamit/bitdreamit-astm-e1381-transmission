@@ -18,6 +18,22 @@ cluster.
 
 ### 2.1 Standalone Mirth
 
+The production extension folder needs exactly **5 files** — two XML
+descriptors and three JARs:
+
+```
+$MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
+├── plugin.xml                                       (extension descriptor)
+├── transmissionmode.xml                             (transmission mode descriptor)
+├── bitdreamit-astm-e1381-transmission-shared.jar    (shared classes)
+├── bitdreamit-astm-e1381-transmission-server.jar    (server classes + shared)
+└── bitdreamit-astm-e1381-transmission-client.jar    (client classes + shared)
+```
+
+Mirth Connect 4.x reads a single consolidated `plugin.xml` at the
+extension root; the older split `server-plugin.xml` +
+`client-plugin.xml` layout is no longer needed.
+
 ```bash
 # 1. Stop Mirth
 sudo systemctl stop mirth-connect
@@ -32,15 +48,22 @@ mkdir -p "$EXT_DIR"
 cp out/bitdreamit-astm-e1381-transmission-shared.jar  "$EXT_DIR/"
 cp out/bitdreamit-astm-e1381-transmission-server.jar "$EXT_DIR/"
 cp out/bitdreamit-astm-e1381-transmission-client.jar "$EXT_DIR/"
-cp transmissionmode.xml                              "$EXT_DIR/"
-cp server/resources/plugin.xml                       "$EXT_DIR/server-plugin.xml"
-cp client/resources/plugin.xml                       "$EXT_DIR/client-plugin.xml"
+cp plugin.xml             "$EXT_DIR/"
+cp transmissionmode.xml   "$EXT_DIR/"
 
 # 4. Start Mirth
 sudo systemctl start mirth-connect
 
 # 5. Verify the extension loaded
 sudo grep -A2 "ASTM E1381" /opt/mirth-connect/logs/mirth.log
+```
+
+Alternatively, use the helper script:
+
+```bash
+cd distribution
+MIRTH_HOME=/opt/mirth-connect ./deploy.sh install
+sudo systemctl restart mirth-connect
 ```
 
 ### 2.2 Cluster (Mirth Connect Server Cluster)

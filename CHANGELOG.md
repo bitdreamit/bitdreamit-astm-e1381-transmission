@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.7] - 2026-08-15 - "Consolidate to single plugin.xml; add deploy.sh helper"
+
+This patch simplifies production deployment by consolidating the
+two split XML files (`server-plugin.xml` + `client-plugin.xml`)
+into a single root-level `plugin.xml`, which is the Mirth Connect
+4.x convention.
+
+### Changed
+- **NEW FILE**: `plugin.xml` at the project root. This single file
+  declares BOTH `<serverClasses>` and `<clientClasses>` blocks,
+  replacing the older split layout. Mirth Connect 4.x reads this
+  file at extension-load time.
+- `distribution/build.sh`:
+  - JAR packaging rules #6 and #7 no longer bundle `plugin.xml`
+    inside the server/client JARs. The XML files are deployed as
+    separate files at the extension folder root (Mirth 4.x
+    convention).
+  - Added rule #8: copies `plugin.xml` and `transmissionmode.xml`
+    to the output directory so `out/` is a drop-in Mirth extension
+    folder.
+- `.idea/artifacts/bitdreamit_astm_e1381_transmission_server.xml`:
+  removed the `<dir-copy>` element that bundled `server/resources/`
+  inside the JAR.
+- `.idea/artifacts/bitdreamit_astm_e1381_transmission_client.xml`:
+  same — removed the `<dir-copy>` element for `client/resources/`.
+- `server/resources/plugin.xml` and `client/resources/plugin.xml`:
+  retained for backwards compatibility (older Mirth 3.x deployments
+  that still expect the split layout), but no longer used by the
+  default deployment flow.
+
+### Added
+- **NEW FILE**: `distribution/deploy.sh` — a helper script that
+  assembles a ready-to-drop Mirth extension folder. Supports three
+  modes:
+    - `./deploy.sh build`   — build JARs + assemble
+      `out/bitdreamit-astm-e1381-transmission/` folder
+    - `./deploy.sh zip`      — also produce
+      `out/bitdreamit-astm-e1381-transmission.zip`
+    - `./deploy.sh install` — also copy directly to
+      `$MIRTH_HOME/extensions/` (requires `MIRTH_HOME` env var)
+
+### Documentation
+- `README.md` "Deploy to Mirth" section rewritten to show the
+  simplified 5-file production layout (2 XML + 3 JARs) and the
+  two deployment options (manual copy vs `deploy.sh`).
+- `PRODUCTION.md` section 2.1 updated with the same simplified
+  layout and the `deploy.sh install` alternative.
+- `BUILD-INFO.txt` updated with the v1.1.7 entry and a clearer
+  explanation of the 5-file production layout.
+
+### Production file inventory
+After this patch, a production Mirth Connect 4.x extension folder
+contains exactly **5 files**:
+
+```
+$MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
+├── plugin.xml                                       (extension descriptor)
+├── transmissionmode.xml                             (transmission mode descriptor)
+├── bitdreamit-astm-e1381-transmission-shared.jar    (shared classes)
+├── bitdreamit-astm-e1381-transmission-server.jar    (server classes + shared)
+└── bitdreamit-astm-e1381-transmission-client.jar    (client classes + shared)
+```
+
+Two XML files, three JAR files — that's it. No signing required
+for Mirth Connect 4.x (signing is optional and only needed if
+your Mirth instance is configured to enforce signed extensions).
+
 ## [1.1.6] - 2026-08-15 - "Move send() out of the client provider; fix architectural layering"
 
 This patch fixes the compile error that v1.1.5 left behind on

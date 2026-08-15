@@ -150,23 +150,30 @@ build() {
     jar cf "$OUT_DIR/bitdreamit-astm-e1381-transmission-shared.jar" \
         -C "$OUT_DIR/shared" .
 
-    # 6. Package server jar (shared classes + server classes + server resources)
+    # 6. Package server jar (shared classes + server classes)
+    #    Note: the plugin.xml and transmissionmode.xml are NO LONGER
+    #    bundled inside the JARs - they are deployed as separate files
+    #    at the extension folder root (Mirth Connect 4.x convention).
     echo "[build] packaging server jar..."
     jar cf "$OUT_DIR/bitdreamit-astm-e1381-transmission-server.jar" \
         -C "$OUT_DIR/shared" . \
-        -C "$OUT_DIR/server" . \
-        -C "$PROJECT_DIR/server/resources" .
+        -C "$OUT_DIR/server" .
 
-    # 7. Package client jar (shared classes + client classes + client resources)
+    # 7. Package client jar (shared classes + client classes)
     echo "[build] packaging client jar..."
     jar cf "$OUT_DIR/bitdreamit-astm-e1381-transmission-client.jar" \
         -C "$OUT_DIR/shared" . \
-        -C "$OUT_DIR/client" . \
-        -C "$PROJECT_DIR/client/resources" .
+        -C "$OUT_DIR/client" .
+
+    # 8. Copy the two production XML files to the output directory
+    #    so the out/ folder is a drop-in Mirth extension folder.
+    echo "[build] copying production XML files..."
+    cp "$PROJECT_DIR/plugin.xml"             "$OUT_DIR/plugin.xml"
+    cp "$PROJECT_DIR/transmissionmode.xml"   "$OUT_DIR/transmissionmode.xml"
 
     echo ""
     echo "[build] complete. Artifacts:"
-    ls -la "$OUT_DIR"/*.jar
+    ls -la "$OUT_DIR"/*.jar "$OUT_DIR"/*.xml
 }
 
 run_tests() {
