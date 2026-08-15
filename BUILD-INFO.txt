@@ -1,6 +1,6 @@
 ============================================================
 bitdreamit-astm-e1381-transmission
-Production-hardened release v1.2.2
+Production-hardened release v1.2.3
 Built: 2026-08-15
 ============================================================
 
@@ -14,31 +14,38 @@ for the full per-version history.
 RECENT FIX HISTORY (newest first)
 ============================================================
 
-v1.2.2 (this release)
-  - Fixed "java.util.zip.ZipException: duplicate entry: com/" in
-    build.sh. The server and client JAR packaging rules used two
-    -C options to merge shared + module-specific class directories.
-    JDK 8's "jar" tool rejects duplicate directory entries (com/),
-    while JDK 9+ merges them automatically. Fix: use a staging
-    directory - copy shared + module classes into a single dir,
-    then package from that dir with one -C option.
+v1.2.3 (this release)
+  - Fixed XmlPullParserException at extension-install time. The
+    v1.0.0 to v1.2.2 plugin.xml files contained XML comments with
+    decorative lines of dashes (e.g. "----------------------").
+    The XML 1.0 spec forbids the sequence "--" inside comment
+    bodies (only the closing "-->" may contain "--"). Mirth 4.5.2's
+    MXParser enforces this strictly and rejects the file with
+    "in comment after two dashes, next character must be the
+    closing angle bracket, not a dash". Fix: replaced all dashed
+    decorative lines with "===" lines, and rewrote comment prose
+    to avoid using literal "-->", "---", or "--" text.
+
+v1.2.2
+  - Fixed "duplicate entry: com/" ZipException in build.sh on JDK 8.
+    Used a staging-directory merge instead of two -C options.
 
 v1.2.1
   - Added log4j-1.2-api-2.17.2.jar to build.sh SERVER_CP. Without
     it, the server module fails to compile with
     "package org.apache.log4j does not exist" (org.apache.log4j.Logger
-    is a Log4j 1.x -> 2.x bridge class shipped in that JAR).
+    is a Log4j 1.x to 2.x bridge class shipped in that JAR).
 
 v1.2.0
-  - Added ASTME1381TransmissionModeProperties to <serverClasses>
-    AND <clientClasses> in plugin.xml so XStream allows deserialization.
+  - Added ASTME1381TransmissionModeProperties to serverClasses and
+    clientClasses in plugin.xml so XStream allows deserialization.
 
 v1.1.9
   - Rewrote plugin.xml to use the actual Mirth 4.5.2 format
-    (<string> elements + top-level <library>).
+    (string elements + top-level library).
 
 v1.1.8
-  - Changed <serverClass class="..."> -> <serverClass name="...">
+  - Changed serverClass class="..." to serverClass name="..."
     (partial fix, properly fixed in v1.1.9).
 
 v1.1.7
@@ -88,11 +95,11 @@ BUILD PREREQUISITES
 Mirth Connect 4.5+ jars at ../mirth-libs/:
 
     mirth-libs/server/mirth-server.jar
-    mirth-libs/server/donkey-server.jar              <-- CRITICAL: Purgable
-    mirth-libs/server/log4j-1.2-api-2.17.2.jar      <-- CRITICAL: org.apache.log4j.Logger
+    mirth-libs/server/donkey-server.jar              CRITICAL: Purgable
+    mirth-libs/server/log4j-1.2-api-2.17.2.jar      CRITICAL: org.apache.log4j.Logger
     mirth-libs/client/mirth-client.jar
     mirth-libs/client/mirth-client-core.jar
-    mirth-libs/client/miglayout-core-4.2.jar         <-- CRITICAL: net.miginfocom.layout.LC
+    mirth-libs/client/miglayout-core-4.2.jar         CRITICAL: net.miginfocom.layout.LC
     mirth-libs/client/miglayout-swing-4.2.jar
     mirth-libs/test/junit-4.13.2.jar
     mirth-libs/test/hamcrest-core-1.3.jar
@@ -120,16 +127,16 @@ BUILD
 
    b) Shell script:
         cd distribution
-        ./build.sh            # build all JARs + XML to ../out/
-        ./build.sh clean      # remove ../out/ (note: SPACE before "clean")
-        ./build.sh test       # build + run JUnit tests
-        ./build.sh rebuild    # clean + build
+        ./build.sh            build all JARs + XML to ../out/
+        ./build.sh clean      remove ../out/ (note: SPACE before "clean")
+        ./build.sh test       build + run JUnit tests
+        ./build.sh rebuild    clean + build
 
    c) Deploy helper:
         cd distribution
-        ./deploy.sh             # build + assemble ../out/<ext-name>/
-        ./deploy.sh zip         # also produce ../out/<ext-name>.zip
-        ./deploy.sh install     # also copy to $MIRTH_HOME/extensions/
+        ./deploy.sh             build + assemble ../out/<ext-name>/
+        ./deploy.sh zip         also produce ../out/<ext-name>.zip
+        ./deploy.sh install     also copy to $MIRTH_HOME/extensions/
 
    d) Maven:
         mvn -Dmirth.libs=$HOME/mirth-libs clean package
@@ -145,9 +152,9 @@ BUILD
 DEPLOY TO MIRTH CONNECT
 ============================================================
 
-A) Install via the Mirth Administrator UI's Extension Manager:
-   - Build + assemble via `./deploy.sh zip`.
-   - Mirth Administrator: Extensions -> Extension Manager -> Install.
+A) Install via the Mirth Administrator UI Extension Manager:
+   - Build + assemble via ./deploy.sh zip
+   - Mirth Administrator: Extensions -> Extension Manager -> Install
 
 B) Manual file copy:
      MIRTH_HOME=/opt/mirth-connect
@@ -175,6 +182,8 @@ VERIFICATION
 - Full project compiles against Mirth Connect 4.5+ jars.
 - All 30 JUnit tests pass.
 - ./build.sh test passes end-to-end (on JDK 8 and JDK 9+).
+- All three plugin.xml files pass strict XML 1.0 well-formedness
+  check (no "--" sequences inside XML comment bodies).
 
 ============================================================
 REFERENCES

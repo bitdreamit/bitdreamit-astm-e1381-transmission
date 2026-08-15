@@ -112,6 +112,75 @@ bitdreamit-astm-e1381-transmission/
 
 ## Troubleshooting
 
+### `ForbiddenClassException` when opening a channel (STALE CACHE - full restart required)
+
+This is the **most common** error after upgrading the extension. The
+error occurs because the Mirth Administrator UI has a **stale cache**
+of the old extension's XStream class registration. Simply replacing
+files and restarting the server is NOT enough.
+
+**Root cause:** Mirth Connect 4.x runs two separate JVMs:
+1. The **Mirth Server** process (deserializes channel XML when loading channels for execution)
+2. The **Mirth Administrator UI** process (runs on the user's desktop, deserializes channel XML locally when editing/viewing channels)
+
+Each JVM has its **own XStream instance** with its **own security
+framework registration**. When you upgrade the extension:
+- The Mirth Server picks up the new `plugin.xml` on restart ✅
+- The Administrator UI does NOT automatically re-download the new
+  `plugin.xml` — it uses the **cached** extension metadata from the
+  last time it connected to the server ❌
+
+So even though the new `plugin.xml` correctly lists
+`ASTME1381TransmissionModeProperties` in `<clientClasses>`, the
+Administrator UI's XStream instance still uses the OLD registration
+(without the Properties class), and rejects it with
+`ForbiddenClassException`.
+
+**Fix: FULL CLEAN REINSTALL (8 steps):**
+
+```
+STEP 1: Uninstall the old extension in the Administrator UI:
+        Extensions -> Extension Manager -> select the extension -> Uninstall
+
+STEP 2: Restart the Mirth Server:
+        sudo systemctl restart mirth-connect
+
+STEP 3: FULLY CLOSE the Mirth Administrator UI:
+        - Do NOT just disconnect. Close the ENTIRE application.
+        - On Windows: File -> Exit (or close all windows)
+        - On Linux: File -> Exit
+        - Verify the Java process is gone:
+            Task Manager (Windows) or: ps aux | grep mirth
+
+STEP 4: Reopen the Mirth Administrator UI and log in.
+        (The UI will re-download extension metadata from the server.)
+
+STEP 5: Install the new extension via Extension Manager:
+        Extensions -> Extension Manager -> Install -> select the .zip
+
+STEP 6: Restart the Mirth Server AGAIN (so the new extension loads):
+        sudo systemctl restart mirth-connect
+
+STEP 7: FULLY CLOSE the Administrator UI AGAIN, then reopen.
+        (The UI needs to re-download the new extension's class list
+        and re-register the Properties class with its XStream instance.)
+
+STEP 8: Open your channel - the ForbiddenClassException should be gone.
+```
+
+**If you STILL get the error after all 8 steps**, the channel XML may
+have stale data from a very old extension version. **Delete the channel
+and create a new one.**
+
+**Diagnostic:** Run `distribution/check_extension.sh` on the Mirth
+server to verify the installed extension's `plugin.xml` correctly
+lists the Properties class in both `<serverClasses>` and
+`<clientClasses>`:
+
+```bash
+MIRTH_HOME=/opt/mirth-connect distribution/check_extension.sh
+```
+
 ### `CannotResolveClassException` when opening a channel (class not on classpath)
 
 If the extension installs successfully but you get this error when

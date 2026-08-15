@@ -4,12 +4,12 @@
 
   Modern Mirth 4.5.2 deployments use the consolidated root-level
   plugin.xml (see ../../plugin.xml) which declares both
-  <serverClasses> and <clientClasses> in a single file. This split
+  serverClasses and clientClasses in a single file. This split
   file is retained only for backwards compatibility with older
   Mirth 3.x deployments that expect server-plugin.xml.
 
-  FORMAT NOTE: uses the Mirth 4.5.2 format (List<String> of class
-  names + top-level <library> elements) so that it parses cleanly
+  FORMAT NOTE: uses the Mirth 4.5.2 format (List of String class
+  names + top-level library elements) so that it parses cleanly
   under XStream 1.4.x. See ../../plugin.xml for the full format
   documentation.
 -->
@@ -17,17 +17,17 @@
 
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.2.0</pluginVersion>
+    <pluginVersion>1.2.3</pluginVersion>
     <mirthVersion>4.5.2</mirthVersion>
     <url>https://bitdreamit.com</url>
-    <description>ASTM E1381-02 lower-layer transmission framing protocol - server side.
-Registers the ASTM E1381 StreamHandler with Mirth Connect's TCP/Serial
+    <description>ASTM E1381-02 lower-layer transmission framing protocol, server side.
+Registers the ASTM E1381 StreamHandler with Mirth Connect TCP/Serial
 connectors. Implements ENQ/ACK/NAK establishment, STX/ETB/ETX framing,
-Add-Mod-256 checksum, 0-7 frame sequencing, per-frame retry with exponential
+Add Mod 256 checksum, 0-7 frame sequencing, per-frame retry with exponential
 backoff, and per-phase timeouts.</description>
 
     <!--
-      The Properties subclass MUST be listed in <serverClasses> so that
+      The Properties subclass MUST be listed in serverClasses so that
       Mirth's ExtensionController registers it with XStream's security
       framework. Without this, channel deserialization fails with
       ForbiddenClassException. See CHANGELOG.md v1.2.0.

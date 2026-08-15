@@ -5,6 +5,74 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-08-15 - "Fix XML comment dashes (XmlPullParserException)"
+
+This patch fixes the install-time XML parse error that occurred
+when Mirth's `DefaultExtensionController.extractExtension` parsed
+the v1.2.0+ `plugin.xml`:
+
+```
+org.xmlpull.v1.XmlPullParserException: in comment after two dashes (--)
+  next character must be > not -
+  (position: START_DOCUMENT seen ...1-transmission plugin.\n\n
+   FORMAT NOTE (Mirth Connect 4.5.2):\n  ---... @7:6)
+    at org.xmlpull.mxp1.MXParser.parseComment(MXParser.java:2337)
+    at org.xmlpull.mxp1.MXParser.parseProlog(MXParser.java:1468)
+    ...
+    at com.mirth.connect.donkey.util.DonkeyElement.fromXml(DonkeyElement.java:493)
+```
+
+### Root cause
+The XML 1.0 spec (W3C) forbids the sequence `--` inside XML comment
+bodies — only the closing `-->` may contain `--`. The Mirth Connect
+4.5.2 XML parser (`org.xmlpull.mxp1.MXParser`, used by `DonkeyElement`)
+enforces this strictly and rejects any `--` sequence inside a comment
+with `XmlPullParserException`.
+
+The v1.0.0 through v1.2.2 `plugin.xml` files contained XML comments
+with decorative lines of dashes:
+
+```xml
+<!--
+  FORMAT NOTE (Mirth Connect 4.5.2):
+  ----------------------------------   <-- THIS LINE is the problem
+  ...
+-->
+```
+
+These decorative lines (`-------...`) all contained `--` sequences,
+which caused the parser to fail at install time.
+
+### Fixed
+- `plugin.xml` (project root):
+  - Replaced the `----------------------------------` decorative line
+    in the header comment with `==================================`.
+  - Replaced all `<!-- ====...==== -->` section-divider comments
+    with plain multi-line `<!-- ... -->` comments that contain NO
+    `=` runs either, to be doubly safe.
+  - Rewrote the comment body to use plain prose instead of code-like
+    notation. For example, "List<String>" became "List of String"
+    (the `<` and `>` characters are technically valid in XML comments
+    but they look like markup to humans and some linters).
+  - Rewrote the "XML comment safety" explanatory paragraph to avoid
+    using literal `-->`, `---`, or `--` text inside the comment
+    (the parser would have closed the comment early).
+- `server/resources/plugin.xml` and `client/resources/plugin.xml`:
+  - Same rewrite of comment bodies to remove `--` sequences.
+  - Removed the `<` and `>` characters from the comment prose
+    (e.g. "<serverClasses>" became "serverClasses") for consistency.
+- Bumped `pluginVersion` to `1.2.3` in all three `plugin.xml` files.
+
+### Verification
+After this patch:
+- All three `plugin.xml` files pass Python's
+  `xml.etree.ElementTree.parse()` (strict XML 1.0 well-formedness
+  check).
+- A regex check confirms no `--` sequence appears inside any
+  comment body in any of the three files.
+- The Mirth Connect 4.5.2 `MXParser` will now parse `plugin.xml`
+  without raising `XmlPullParserException`.
+
 ## [1.2.2] - 2026-08-15 - "Fix 'duplicate entry: com/' ZipException in build.sh"
 
 This patch fixes the build failure that occurred when running

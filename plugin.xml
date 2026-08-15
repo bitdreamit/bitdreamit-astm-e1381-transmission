@@ -4,12 +4,12 @@
   bitdreamit-astm-e1381-transmission plugin.
 
   FORMAT NOTE (Mirth Connect 4.5.2):
-  ----------------------------------
+  ==================================
   This file uses the same plugin.xml format that Mirth Connect 4.5.2
   ships for its built-in plugins (e.g. datatype-hl7v3). The structure
   is:
 
-    <pluginMetaData path="<extension-folder-name>">
+    <pluginMetaData path="extension-folder-name">
         <name>...</name>
         <author>...</author>
         <pluginVersion>...</pluginVersion>
@@ -18,48 +18,53 @@
         <description>...</description>
 
         <serverClasses>
-            <string>com.example.ServerPlugin</string>     <-- List<String>
+            <string>com.example.ServerPlugin</string>     List of String
             <string>com.example.AnotherServerPlugin</string>
         </serverClasses>
 
         <clientClasses>
-            <string>com.example.ClientPlugin</string>     <-- List<String>
+            <string>com.example.ClientPlugin</string>     List of String
         </clientClasses>
 
-        <library type="CLIENT" path="client.jar" />       <-- top-level, shared
-        <library type="SHARED" path="shared.jar" />        <-- by all classes
-        <library type="SERVER" path="server.jar" />       <-- in this extension
+        <library type="CLIENT" path="client.jar" />       top-level, shared
+        <library type="SHARED" path="shared.jar" />       by all classes
+        <library type="SERVER" path="server.jar" />       in this extension
     </pluginMetaData>
 
-  Key points (this is what was wrong in v1.0.0 - v1.1.8):
+  Key points (this is what was wrong in v1.0.0 to v1.1.8):
 
-  1. <serverClasses> / <clientClasses> contain <string> elements
-     DIRECTLY - one <string> per class name. There is NO
-     <serverClass> or <clientClass> wrapper element. The wrapper
+  1. serverClasses and clientClasses contain string elements
+     DIRECTLY, one string per class name. There is NO
+     serverClass or clientClass wrapper element. The wrapper
      approach was an older Mirth 3.x convention that XStream 1.4.x
      in Mirth 4.5.2 rejects with
      "CannotResolveClassException: serverClass".
 
-  2. <library> elements are declared at the TOP LEVEL of
-     <pluginMetaData>, NOT nested inside class wrappers. Each
-     <library> declares one JAR with its type (CLIENT / SHARED /
+  2. library elements are declared at the TOP LEVEL of
+     pluginMetaData, NOT nested inside class wrappers. Each
+     library declares one JAR with its type (CLIENT / SHARED /
      SERVER) and path. Mirth's classloader uses these to assemble
      the runtime classpath for both server-side and client-side
      classes.
 
-  3. There is NO <name="..."> attribute anywhere - class names are
-     the text content of <string> elements.
+  3. There is NO name="..." attribute anywhere; class names are
+     the text content of string elements.
 
   See CHANGELOG.md v1.1.9 for the full root-cause analysis.
+
+  IMPORTANT (XML comment safety):
+  XML comments must not contain double dash sequences other than
+  the comment closing marker. Decorative lines of dashes cause
+  XmlPullParserException: "in comment after two dashes, next
+  character must be the closing angle bracket, not a dash".
+  This file uses "===" decorative lines instead of dashed ones
+  to avoid that error.
 -->
 <pluginMetaData path="bitdreamit-astm-e1381-transmission">
 
-    <!-- =========================================================== -->
-    <!-- Plugin identity (shown in Mirth's Extensions manager UI)   -->
-    <!-- =========================================================== -->
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.2.0</pluginVersion>
+    <pluginVersion>1.2.3</pluginVersion>
     <mirthVersion>4.5.2</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol.
@@ -69,48 +74,48 @@ with exponential backoff, per-phase timeouts (establishment, frame, response),
 and a per-session RetryMetrics counter for operational dashboards.
 Transport-agnostic: works with TCP Listener / TCP Sender and Serial Connector.</description>
 
-    <!-- =========================================================== -->
-    <!-- Server-side classes (loaded by the Mirth Server process)   -->
-    <!-- Each <string> is the FQCN of a server-side plugin class    -->
-    <!-- OR a class that needs XStream deserialization registration. -->
-    <!--                                                              -->
-    <!-- IMPORTANT: the Properties subclass MUST be listed here so    -->
-    <!-- that Mirth's ExtensionController registers it with XStream's -->
-    <!-- security framework. Without this registration, XStream      -->
-    <!-- rejects the class at channel-deserialization time with:      -->
-    <!--   ForbiddenClassException:                                   -->
-    <!--   com.bitdreamit....ASTME1381TransmissionModeProperties    -->
-    <!-- See CHANGELOG.md v1.2.0 for the full root-cause analysis. -->
-    <!-- =========================================================== -->
+    <!--
+      Server-side classes (loaded by the Mirth Server process).
+      Each string element is the FQCN of a server-side plugin class
+      OR a class that needs XStream deserialization registration.
+
+      IMPORTANT: the Properties subclass MUST be listed here so
+      that Mirth's ExtensionController registers it with XStream's
+      security framework. Without this registration, XStream
+      rejects the class at channel-deserialization time with:
+        ForbiddenClassException:
+        com.bitdreamit....ASTME1381TransmissionModeProperties
+      See CHANGELOG.md v1.2.0 for the full root-cause analysis.
+    -->
     <serverClasses>
         <string>com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin</string>
         <string>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</string>
     </serverClasses>
 
-    <!-- =========================================================== -->
-    <!-- Client-side classes (loaded by the Mirth Administrator UI)  -->
-    <!-- Each <string> is the FQCN of a client-side plugin class OR  -->
-    <!-- a class that needs XStream deserialization registration.     -->
-    <!--                                                              -->
-    <!-- The Properties subclass is listed here too because the       -->
-    <!-- Administrator UI deserializes channel XML locally when      -->
-    <!-- editing/viewing channels - the client-side XStream instance  -->
-    <!-- needs the class registered too.                             -->
-    <!-- =========================================================== -->
+    <!--
+      Client-side classes (loaded by the Mirth Administrator UI).
+      Each string element is the FQCN of a client-side plugin class
+      OR a class that needs XStream deserialization registration.
+
+      The Properties subclass is listed here too because the
+      Administrator UI deserializes channel XML locally when
+      editing/viewing channels; the client-side XStream instance
+      needs the class registered too.
+    -->
     <clientClasses>
         <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin</string>
         <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider</string>
         <string>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</string>
     </clientClasses>
 
-    <!-- =========================================================== -->
-    <!-- Library JARs (top-level - shared by all classes above)     -->
-    <!-- Mirth's classloader wires these onto the appropriate        -->
-    <!-- classpath based on the type attribute:                      -->
-    <!--   SERVER -> server-side classpath                            -->
-    <!--   CLIENT -> client-side (Administrator UI) classpath        -->
-    <!--   SHARED -> both sides                                       -->
-    <!-- =========================================================== -->
+    <!--
+      Library JARs (top-level, shared by all classes above).
+      Mirth's classloader wires these onto the appropriate
+      classpath based on the type attribute:
+        SERVER  = server-side classpath
+        CLIENT  = client-side (Administrator UI) classpath
+        SHARED  = both sides
+    -->
     <library type="CLIENT" path="bitdreamit-astm-e1381-transmission-client.jar" />
     <library type="SHARED" path="bitdreamit-astm-e1381-transmission-shared.jar" />
     <library type="SERVER" path="bitdreamit-astm-e1381-transmission-server.jar" />
