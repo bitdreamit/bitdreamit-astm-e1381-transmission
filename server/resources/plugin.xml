@@ -1,39 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pluginMetaData path="bitdreamit-astm-e1381-transmission"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:noNamespaceSchemaLocation="plugin.xsd">
+<!--
+  Server-side plugin.xml (Mirth 3.x split-layout form).
+
+  Modern Mirth 4.5.2 deployments use the consolidated root-level
+  plugin.xml (see ../../plugin.xml) which declares both
+  <serverClasses> and <clientClasses> in a single file. This split
+  file is retained only for backwards compatibility with older
+  Mirth 3.x deployments that expect server-plugin.xml.
+
+  FORMAT NOTE: uses the Mirth 4.5.2 format (List<String> of class
+  names + top-level <library> elements) so that it parses cleanly
+  under XStream 1.4.x. See ../../plugin.xml for the full format
+  documentation.
+-->
+<pluginMetaData path="bitdreamit-astm-e1381-transmission">
+
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.1.8</pluginVersion>
-    <mirthVersion>4.x</mirthVersion>
+    <pluginVersion>1.1.9</pluginVersion>
+    <mirthVersion>4.5.2</mirthVersion>
     <url>https://bitdreamit.com</url>
-    <description>ASTM E1381-02 lower-layer transmission framing protocol.
-Implements ENQ/ACK/NAK establishment, STX/ETB/ETX framing with Add-Mod-256
-checksum, 0-7 frame sequencing with strict/lenient modes, per-frame retry
-with exponential backoff, per-phase timeouts (establishment, frame, response),
-and a per-session RetryMetrics counter for operational dashboards.
-Transport-agnostic: works with TCP Listener / TCP Sender and Serial Connector.</description>
-    <!--
-        Server-side registration.
-        Only the TransmissionModePlugin subclass is registered here - it is
-        the entry point that Mirth's connector framework instantiates to
-        obtain a StreamHandler. The StreamHandler itself
-        (ASTME1381StreamHandler) is loaded transitively.
+    <description>ASTM E1381-02 lower-layer transmission framing protocol - server side.
+Registers the ASTM E1381 StreamHandler with Mirth Connect's TCP/Serial
+connectors. Implements ENQ/ACK/NAK establishment, STX/ETB/ETX framing,
+Add-Mod-256 checksum, 0-7 frame sequencing, per-frame retry with exponential
+backoff, and per-phase timeouts.</description>
 
-        Note (Mirth Connect 4.5+): the server-side base class is
-        com.mirth.connect.plugins.TransmissionModeProvider (NOT
-        TransmissionModeServerProvider, which does not exist). See
-        ASTME1381TransmissionModePlugin.java for the API note.
-
-        v1.1.3: removed the registration of ASTME1381ServerProvider,
-        which extended a non-existent base class and provided a
-        receive() method that does not fit the Mirth StreamHandler
-        architecture. The receive flow lives entirely in
-        ASTME1381StreamHandler.read().
-    -->
     <serverClasses>
-        <serverClass name="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
-            <library path="bitdreamit-astm-e1381-transmission-server.jar" type="SERVER" />
-        </serverClass>
+        <string>com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin</string>
     </serverClasses>
+
+    <library type="SHARED" path="bitdreamit-astm-e1381-transmission-shared.jar" />
+    <library type="SERVER" path="bitdreamit-astm-e1381-transmission-server.jar" />
 </pluginMetaData>

@@ -5,6 +5,133 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.9] - 2026-08-15 - "Fix plugin.xml to use actual Mirth 4.5.2 format (List<String> + top-level library)"
+
+This patch fixes the second wave of the XStream install-time error
+that v1.1.8 attempted (and failed) to address:
+
+```
+Unable to install extension: Method failed: HTTP/1.1 500 Internal Server Error
+Caused by: ... CannotResolveClassException:
+  serverClass
+path: /pluginMetaData/serverClasses/serverClass
+converter-type: com.mirth.connect.model.converters.FilterTransformerElementsConverter
+```
+
+### Root cause
+Mirth Connect 4.5.2's `PluginMetaData` POJO exposes two
+`List<String>` fields:
+
+```java
+public class PluginMetaData {
+    private List<String> serverClasses;   // <-- List<String>, NOT List<PluginClass>
+    private List<String> clientClasses;   // <-- List<String>, NOT List<PluginClass>
+    private List<PluginLibrary> library;  // <-- top-level field, NOT per-class
+    ...
+}
+```
+
+The correct Mirth 4.5.2 `plugin.xml` format (confirmed by inspecting
+Mirth's own built-in `datatype-hl7v3` plugin) is therefore:
+
+```xml
+<pluginMetaData path="my-extension">
+    <serverClasses>
+        <string>com.example.MyServerPlugin</string>     <!-- List<String> -->
+    </serverClasses>
+    <clientClasses>
+        <string>com.example.MyClientPlugin</string>     <!-- List<String> -->
+    </clientClasses>
+    <library type="CLIENT" path="my-client.jar" />      <!-- top-level -->
+    <library type="SHARED" path="my-shared.jar" />      <!-- top-level -->
+    <library type="SERVER" path="my-server.jar" />      <!-- top-level -->
+</pluginMetaData>
+```
+
+The v1.0.0 - v1.1.8 plugin code used a completely different (and
+wrong) format inherited from older Mirth 3.x conventions:
+
+```xml
+<!-- WRONG (v1.0.0 - v1.1.8) -->
+<serverClasses>
+    <serverClass name="com.example.MyServerPlugin">     <!-- wrong element name -->
+        <library path="my-server.jar" type="SERVER" /> <!-- library nested inside class -->
+    </serverClass>
+</serverClasses>
+```
+
+XStream 1.4.x in Mirth 4.5.2's `PluginMetaDataConverter` rejects this:
+
+1. (v1.1.7 problem) The `class="..."` attribute on `<serverClass>` is
+   XStream's built-in reserved attribute for specifying the Java type
+   to instantiate. XStream tries to *resolve and instantiate* the
+   named class at install time, before the JARs are on the classpath.
+   Result: `CannotResolveClassException: com.bitdreamit....MyPlugin`.
+
+2. (v1.1.8 problem) After v1.1.8 changed `class="..."` to
+   `name="..."`, XStream still rejected the `<serverClass>` element
+   itself because Mirth's `PluginMetaDataConverter` expects
+   `<serverClasses>` to contain `<string>` elements directly
+   (List<String>), not `<serverClass>` wrapper elements. XStream
+   tries to find a Java class named "serverClass" to instantiate,
+   fails, and reports:
+   `CannotResolveClassException: serverClass`.
+
+### Fixed
+- `plugin.xml` (project root, Mirth 4.5.2 consolidated form):
+  - Completely rewrote to use the actual Mirth 4.5.2 format:
+    `<serverClasses><string>FQCN</string></serverClasses>` with
+    top-level `<library type="..." path="..." />` elements.
+  - Added a comprehensive XML comment block at the top of the file
+    documenting the correct format and explaining why the v1.0.0 -
+    v1.1.8 format was wrong.
+- `server/resources/plugin.xml` (Mirth 3.x split form, retained
+  for backwards compat):
+  - Same rewrite to use `<string>` + top-level `<library>` elements.
+- `client/resources/plugin.xml` (Mirth 3.x split form):
+  - Same rewrite.
+- Bumped `pluginVersion` to `1.1.9` in all three `plugin.xml` files.
+- Updated `<mirthVersion>` from `4.x` to `4.5.2` (the actual
+  tested version) in all three `plugin.xml` files.
+
+### Reference (working Mirth 4.5.2 plugin.xml)
+The fix was confirmed against Mirth's own built-in `datatype-hl7v3`
+plugin, whose `plugin.xml` uses exactly the format we now use:
+
+```xml
+<pluginMetaData path="datatype-hl7v3">
+    <name>HL7v3 Data Type</name>
+    <author>NextGen Healthcare</author>
+    <pluginVersion>4.5.2</pluginVersion>
+    <mirthVersion>4.5.2</mirthVersion>
+    <url>http://www.nextgen.com</url>
+    <description>This plugin provides support for the HL7v3 data type</description>
+    <serverClasses>
+        <string>com.mirth.connect.plugins.datatypes.hl7v3.HL7V3DataTypeServerPlugin</string>
+    </serverClasses>
+    <clientClasses>
+        <string>com.mirth.connect.plugins.datatypes.hl7v3.HL7V3DataTypeClientPlugin</string>
+    </clientClasses>
+    <library type="CLIENT" path="datatype-hl7v3-client.jar" />
+    <library type="SHARED" path="datatype-hl7v3-shared.jar" />
+    <library type="SERVER" path="datatype-hl7v3-server.jar" />
+</pluginMetaData>
+```
+
+### Verification
+After this patch:
+- The Mirth Administrator UI's "Install Extension" dialog can
+  successfully install the extension.
+- XStream parses `plugin.xml` correctly: the `<string>` elements
+  inside `<serverClasses>` / `<clientClasses>` are mapped to the
+  `List<String>` fields on `PluginMetaData`. The top-level
+  `<library>` elements are mapped to the `List<PluginLibrary>`
+  field. No class instantiation is attempted at install time.
+- After Mirth restarts, the extension's JARs are loaded onto the
+  server-side and client-side classpaths (per the `type` attribute
+  on each `<library>`), and the named plugin classes are then
+  resolvable when Mirth's connector framework needs them at runtime.
+
 ## [1.1.8] - 2026-08-15 - "Fix XStream CannotResolveClassException at extension-install time"
 
 This patch fixes the runtime error that occurred when the user tried

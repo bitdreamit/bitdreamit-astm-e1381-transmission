@@ -110,40 +110,87 @@ When installing the extension via the Mirth Administrator UI's
 ```
 Unable to install extension: Method failed: HTTP/1.1 500 Internal Server Error
 Caused by: ... CannotResolveClassException:
-  com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin
+  <something>
 path: /pluginMetaData/serverClasses/serverClass
 converter-type: com.mirth.connect.model.converters.FilterTransformerElementsConverter
 ```
 
-**Root cause:** the `<serverClass>` and `<clientClass>` elements in
-`plugin.xml` were using a `class="..."` attribute to specify the
-plugin class name. Mirth's XStream-based `PluginMetaDataConverter`
-maps the `name` attribute (not `class`) to the `PluginClass.name`
-String field. The `class` attribute is XStream's built-in reserved
-attribute for specifying the actual Java type to instantiate — so
-when XStream encounters `class="com.bitdreamit....ASTME1381TransmissionModePlugin"`,
-it tries to *resolve and instantiate* that Java class at
-extension-install time, before the JARs are on the classpath.
-Result: `CannotResolveClassException`.
-
-**Fix:** make sure you are using v1.1.8+ of this plugin, which
-changed all three `plugin.xml` files to use `name="..."` instead of
-`class="..."`:
+There are two distinct failure modes, both caused by using the wrong
+`plugin.xml` format. Mirth Connect 4.5.2's `PluginMetaData` POJO
+exposes `List<String>` fields (not `List<PluginClass>`), so the
+correct XML format is:
 
 ```xml
-<!-- WRONG (v1.0.0 - v1.1.7) -->
-<serverClass class="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
-
-<!-- CORRECT (v1.1.8+) -->
-<serverClass name="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
+<pluginMetaData path="my-extension">
+    <serverClasses>
+        <string>com.example.MyServerPlugin</string>     <!-- List<String> -->
+    </serverClasses>
+    <clientClasses>
+        <string>com.example.MyClientPlugin</string>     <!-- List<String> -->
+    </clientClasses>
+    <library type="CLIENT" path="my-client.jar" />      <!-- top-level -->
+    <library type="SHARED" path="my-shared.jar" />      <!-- top-level -->
+    <library type="SERVER" path="my-server.jar" />      <!-- top-level -->
+</pluginMetaData>
 ```
 
-After the fix, XStream parses `plugin.xml` correctly: the `name="..."`
-attribute is mapped to the `PluginClass.name` String field, no class
-instantiation is attempted at install time, and the extension's JARs
-are loaded onto the server-side and client-side classpaths. The
-`ASTME1381TransmissionModePlugin` class is then resolvable when
-Mirth's connector framework needs it at runtime.
+This is the format Mirth's own built-in `datatype-hl7v3` plugin
+uses (see CHANGELOG.md v1.1.9 for the full reference).
+
+#### Failure mode 1: `CannotResolveClassException: com.example.MyPlugin`
+
+**Symptom:** the `cause-message` is the FQCN of one of your plugin
+classes (e.g. `com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin`).
+
+**Root cause:** the `<serverClass>` element used a `class="..."`
+attribute. XStream treats `class` as its built-in reserved
+attribute for specifying the Java type to instantiate — so it tries
+to *resolve and instantiate* the named class at install time,
+before the JARs are on the classpath.
+
+**Fix:** make sure you are using v1.1.8+ which changed
+`class="..."` to `name="..."`. (Then upgrade to v1.1.9 to fix
+failure mode 2 below.)
+
+#### Failure mode 2: `CannotResolveClassException: serverClass`
+
+**Symptom:** the `cause-message` is literally the string
+`serverClass` (or `clientClass`) — not a Java class FQCN.
+
+**Root cause:** even after v1.1.8's `class="..."` → `name="..."`
+fix, the v1.0.0 - v1.1.8 plugin code still used
+`<serverClass name="...">` wrapper elements inside
+`<serverClasses>`. Mirth's `PluginMetaDataConverter` expects
+`<serverClasses>` to contain `<string>` elements directly
+(`List<String>`), not `<serverClass>` wrapper elements. XStream
+tries to find a Java class named `serverClass` to instantiate,
+fails, and reports `CannotResolveClassException: serverClass`.
+
+**Fix:** make sure you are using v1.1.9+, which completely
+rewrote all three `plugin.xml` files to use the actual Mirth 4.5.2
+format: `<serverClasses><string>FQCN</string></serverClasses>`
+with top-level `<library type="..." path="..." />` elements.
+
+```xml
+<!-- WRONG (v1.0.0 - v1.1.8) -->
+<serverClasses>
+    <serverClass name="com.example.MyPlugin">
+        <library path="my-server.jar" type="SERVER" />
+    </serverClass>
+</serverClasses>
+
+<!-- CORRECT (v1.1.9+) -->
+<serverClasses>
+    <string>com.example.MyPlugin</string>
+</serverClasses>
+<library type="SERVER" path="my-server.jar" />
+```
+
+After the fix, XStream parses `plugin.xml` correctly: the `<string>`
+elements are mapped to the `List<String>` fields on
+`PluginMetaData`, the top-level `<library>` elements are mapped
+to the `List<PluginLibrary>` field, and no class instantiation is
+attempted at install time.
 
 ### `cannot access net.miginfocom.layout.LC`
 

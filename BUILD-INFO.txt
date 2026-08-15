@@ -1,6 +1,6 @@
 ============================================================
 bitdreamit-astm-e1381-transmission
-Production-hardened release v1.1.8
+Production-hardened release v1.1.9
 Built: 2026-08-15
 ============================================================
 
@@ -25,18 +25,16 @@ FIVE files - two XML descriptors and three JARs:
   `-- bitdreamit-astm-e1381-transmission-client.jar    (client classes + shared)
 
 XML files (2 required):
-  - plugin.xml            : main extension descriptor. Declares the
-                           plugin name, version, author, and which
-                           classes to load on the server side
-                           (<serverClasses>) and client side
-                           (<clientClasses>). Each <serverClass> /
-                           <clientClass> uses a name="..." attribute
-                           (NOT class="...") to specify the FQCN -
-                           see the v1.1.8 CHANGELOG entry for why.
-                           Mirth Connect 4.x reads this single file
-                           - the older split layout
-                           (server-plugin.xml + client-plugin.xml)
-                           is no longer needed.
+  - plugin.xml            : main extension descriptor. Uses the Mirth
+                           Connect 4.5.2 format with <string>
+                           elements inside <serverClasses> /
+                           <clientClasses> (List<String> of FQCNs)
+                           and top-level <library type="..."
+                           path="..." /> elements. Matches the
+                           format Mirth uses for its own built-in
+                           datatype-hl7v3 plugin. See v1.1.9
+                           CHANGELOG entry for the full format
+                           reference.
   - transmissionmode.xml  : transmission-mode-specific descriptor.
                            Declares the server-side class name
                            (TransmissionModePlugin subclass), the
@@ -60,31 +58,40 @@ unsigned.
 RECENT FIX HISTORY (newest first)
 ============================================================
 
-v1.1.8 (this release)
-  - Fixed XStream CannotResolveClassException at extension-install
-    time. Changed <serverClass class="..."> -> <serverClass name="...">
-    and <clientClass class="..."> -> <clientClass name="..."> in
-    all three plugin.xml files. The `class` attribute is XStream's
-    built-in reserved attribute for specifying the Java type to
-    instantiate; using it caused XStream to try to instantiate the
-    plugin class at install time, before the JARs were on the
-    classpath. The `name` attribute maps to the PluginClass.name
-    String field, no instantiation is attempted.
-  - Bumped pluginVersion to 1.1.8 in all three plugin.xml files.
+v1.1.9 (this release)
+  - Completely rewrote all three plugin.xml files to use the
+    actual Mirth 4.5.2 format:
+      <serverClasses>
+          <string>FQCN</string>     (List<String>, no wrapper element)
+      </serverClasses>
+      <clientClasses>
+          <string>FQCN</string>
+      </clientClasses>
+      <library type="CLIENT|SHARED|SERVER" path="..." />  (top-level)
+    Previous versions (v1.0.0 - v1.1.8) used a wrong format inherited
+    from older Mirth 3.x conventions (<serverClass name="...">
+    wrapper elements with nested <library>). XStream 1.4.x in
+    Mirth 4.5.2 rejects that format with
+    "CannotResolveClassException: serverClass".
+  - Confirmed against Mirth's own built-in datatype-hl7v3 plugin
+    (whose plugin.xml uses exactly the format we now use).
+  - Bumped <mirthVersion> from "4.x" to "4.5.2" (the actual tested
+    version) in all three plugin.xml files.
+
+v1.1.8
+  - Changed <serverClass class="..."> -> <serverClass name="...">
+    (was XStream reserved attribute). PARTIAL fix only - the
+    <serverClass> wrapper element itself was still wrong. Fixed
+    properly in v1.1.9 by removing the wrapper entirely and using
+    <string> elements directly.
 
 v1.1.7
-  - Consolidated the two split XML files (server-plugin.xml +
-    client-plugin.xml) into a single root-level plugin.xml.
-  - Added distribution/deploy.sh helper script (build/zip/install
-    modes).
-  - IntelliJ IDEA artifact XMLs updated to no longer bundle
-    server/resources/ or client/resources/ inside the JARs.
+  - Consolidated two split XML files into a single root-level
+    plugin.xml. Added distribution/deploy.sh helper script.
 
 v1.1.6
   - Removed the send() method and all its wire-protocol helpers
     from ASTME1381ClientProvider.
-  - The full wire protocol remains in the server-side
-    ASTME1381StreamHandler.write(byte[]).
 
 v1.1.5
   - Added miglayout-core-4.2.jar to the IntelliJ mirth-client library.
@@ -120,6 +127,41 @@ v1.1.0
 
 v1.0.0 (original release)
   - Multiple inconsistencies prevented compilation and deployment.
+
+============================================================
+CORRECT plugin.xml FORMAT (Mirth Connect 4.5.2)
+============================================================
+
+This is the format used by all three plugin.xml files in v1.1.9+.
+It matches the format Mirth uses for its own built-in plugins
+(e.g. datatype-hl7v3):
+
+  <pluginMetaData path="bitdreamit-astm-e1381-transmission">
+      <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
+      <author>Bit Dream IT</author>
+      <pluginVersion>1.1.9</pluginVersion>
+      <mirthVersion>4.5.2</mirthVersion>
+      <url>https://bitdreamit.com</url>
+      <description>...</description>
+      <serverClasses>
+          <string>com.bitdreamit...ASTME1381TransmissionModePlugin</string>
+      </serverClasses>
+      <clientClasses>
+          <string>com.bitdreamit...ASTME1381TransmissionModeClientPlugin</string>
+          <string>com.bitdreamit...ASTME1381ClientProvider</string>
+      </clientClasses>
+      <library type="CLIENT" path="bitdreamit-astm-e1381-transmission-client.jar" />
+      <library type="SHARED" path="bitdreamit-astm-e1381-transmission-shared.jar" />
+      <library type="SERVER" path="bitdreamit-astm-e1381-transmission-server.jar" />
+  </pluginMetaData>
+
+Key points:
+  - <serverClasses> / <clientClasses> contain <string> elements
+    DIRECTLY (List<String> of FQCNs). NO <serverClass> wrapper.
+  - <library> elements are at the TOP LEVEL of <pluginMetaData>,
+    NOT nested inside class wrappers.
+  - <library> uses type="..." and path="..." attributes.
+  - <mirthVersion> is "4.5.2" (the actual tested version).
 
 ============================================================
 ARCHITECTURE (client UI vs. server wire protocol)
@@ -241,8 +283,9 @@ A) Install via the Mirth Administrator UI's Extension Manager:
      `./deploy.sh zip` (or manually zip the 5 production files).
    - In Mirth Administrator: Extensions -> Extension Manager ->
      Install -> select the .zip file.
-   - The v1.1.8 fix (name="..." instead of class="..." in plugin.xml)
-     is what makes this installation path work without the
+   - The v1.1.9 fix (using <string> elements + top-level <library>
+     in plugin.xml, matching Mirth's own datatype-hl7v3 format) is
+     what makes this installation path work without the
      "CannotResolveClassException" error.
 
 B) Manual file copy (bypass the Extension Manager UI):
@@ -299,3 +342,4 @@ REFERENCES
   https://docs.nextgen.com/en-US/mirthc2ae-connect-user-guide-3299192/astm-e1381-transmission-mode-12617
 - Original upstream repo:
   https://github.com/bitdreamit/bitdreamit-astm-e1381-transmission
+

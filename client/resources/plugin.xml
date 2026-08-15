@@ -1,23 +1,37 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<pluginMetaData path="bitdreamit-astm-e1381-transmission"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:noNamespaceSchemaLocation="plugin.xsd">
+<!--
+  Client-side plugin.xml (Mirth 3.x split-layout form).
+
+  Modern Mirth 4.5.2 deployments use the consolidated root-level
+  plugin.xml (see ../../plugin.xml) which declares both
+  <serverClasses> and <clientClasses> in a single file. This split
+  file is retained only for backwards compatibility with older
+  Mirth 3.x deployments that expect client-plugin.xml.
+
+  FORMAT NOTE: uses the Mirth 4.5.2 format (List<String> of class
+  names + top-level <library> elements) so that it parses cleanly
+  under XStream 1.4.x. See ../../plugin.xml for the full format
+  documentation.
+-->
+<pluginMetaData path="bitdreamit-astm-e1381-transmission">
+
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.1.8</pluginVersion>
-    <mirthVersion>4.x</mirthVersion>
+    <pluginVersion>1.1.9</pluginVersion>
+    <mirthVersion>4.5.2</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol - client side.
 Provides the settings panel (Frame Settings, Validation Settings, Connection
 Settings, Mode) used by channel authors when configuring an ASTM E1381
-destination connector. Also provides the client-side TransmissionModeClientProvider
-that drives the ENQ -> ACK -> frames -> EOT send flow.</description>
+destination connector. Also provides the client-side
+TransmissionModeClientProvider that exposes the sample messages and
+property-validation hooks for the Mirth channel editor.</description>
+
     <clientClasses>
-        <clientClass name="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin">
-            <library path="bitdreamit-astm-e1381-transmission-client.jar" type="CLIENT" />
-        </clientClass>
-        <clientClass name="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider">
-            <library path="bitdreamit-astm-e1381-transmission-client.jar" type="CLIENT" />
-        </clientClass>
+        <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin</string>
+        <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider</string>
     </clientClasses>
+
+    <library type="CLIENT" path="bitdreamit-astm-e1381-transmission-client.jar" />
+    <library type="SHARED" path="bitdreamit-astm-e1381-transmission-shared.jar" />
 </pluginMetaData>
