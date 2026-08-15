@@ -1,6 +1,6 @@
 ============================================================
 bitdreamit-astm-e1381-transmission
-Production-hardened release v1.1.5
+Production-hardened release v1.1.6
 Built: 2026-08-15
 ============================================================
 
@@ -14,75 +14,108 @@ for the full per-version history.
 RECENT FIX HISTORY (newest first)
 ============================================================
 
-v1.1.5 (this release)
+v1.1.6 (this release)
+  - Removed the send() method and all its wire-protocol helpers
+    from ASTME1381ClientProvider. Mirth Connect 4.5.2's
+    TransmissionModeClientProvider does NOT declare a send() method
+    (the wire protocol is the server side's responsibility), so the
+    @Override annotation failed to compile.
+  - The full ASTM E1381-02 wire protocol (ENQ / ACK / NAK / EOT /
+    framing / checksum) remains in the server-side
+    ASTME1381StreamHandler.write(byte[]) method, which is unchanged.
+    No functionality is lost.
+  - The client provider now correctly implements only the eight
+    abstract methods declared on TransmissionModeClientProvider:
+    getSampleLabel, getSampleValue, getProperties,
+    getDefaultProperties, setProperties, checkProperties,
+    resetInvalidProperties, getSettingsComponent.
+
+v1.1.5
   - Added miglayout-core-4.2.jar to the IntelliJ mirth-client library.
     MigLayout 4.2 ships as TWO jars (core + swing); the swing jar's
     MigLayout class references net.miginfocom.layout.LC (which lives
     in core) at construction time. Without BOTH jars the client module
     fails to compile with "cannot access net.miginfocom.layout.LC".
   - Properly implemented the five additional abstract methods declared
-    on TransmissionModeClientProvider (Mirth 4.5+) that v1.1.4 missed:
-    getProperties(), getDefaultProperties(), checkProperties(),
-    resetInvalidProperties(), getSettingsComponent().
+    on TransmissionModeClientProvider (Mirth 4.5+): getProperties,
+    getDefaultProperties, checkProperties, resetInvalidProperties,
+    getSettingsComponent.
   - Updated pom.xml, client/pom.xml, and distribution/build.sh to
     declare miglayout-core and miglayout-swing 4.2 dependencies.
 
 v1.1.4
   - Added the required getSampleLabel() override.
-  - Changed send(OutputStream, InputStream, byte[]) ->
-    send(OutputStream, InputStream, String) to match the parent's
-    abstract method signature. String is converted to bytes
-    internally using ISO-8859-1.
+  - Added send(OutputStream, InputStream, String) - WRONG: this method
+    is not on TransmissionModeClientProvider in Mirth 4.5.2. Fixed
+    in v1.1.6 by removing it.
 
 v1.1.3
   - Fixed wrong base class names:
       * server/ASTME1381TransmissionModePlugin now extends
-        TransmissionModeProvider (server-side, was TransmissionModePlugin).
+        TransmissionModeProvider (server-side).
       * client/ASTME1381TransmissionModeClientPlugin now extends
-        TransmissionModePlugin (client-side, was TransmissionModeClientPlugin).
+        TransmissionModePlugin (client-side).
       * Deleted server/ASTME1381ServerProvider.java (extended a
         non-existent TransmissionModeServerProvider; the receive flow
         already lives in ASTME1381StreamHandler.read()).
       * Added required createProvider() override on the client plugin.
-  - Removed phantom @Override annotations on methods not declared on
-    the actual parent classes.
 
 v1.1.2
   - Removed phantom @Override from getPropertyDescriptors() and
     setProperties(Map) on ASTME1381TransmissionModeProperties.
-    These methods are NOT declared on Mirth's
-    TransmissionModeProperties base class (they belong to
-    PropertyVerifier, used by DataType plugins). They are kept as
-    plain methods on the subclass (used by the settings panel).
 
 v1.1.1
   - Added donkey-server.jar to the IntelliJ mirth-server library
     (it contains com.mirth.connect.donkey.util.purge.Purgable,
-    which TransmissionModeProperties implements). Without it the
-    shared module fails to compile with "cannot access Purgable"
-    followed by a cascade of @Override errors.
+    which TransmissionModeProperties implements).
   - Added module-level pom.xml files (shared, server, client, test).
   - Added stubs/ directory with a compile-time-only Purgable
     interface for environments where donkey-server.jar is unavailable.
-  - Replaced getPluginPointName() (inherited from Purgable) with
-    ASTME1381Constants.PLUGIN_NAME directly in getPurgedProperties().
-  - Switched setProperties(Map) to the parameterized
-    Map<String, DataTypePropertyDescriptor> signature.
 
 v1.1.0
   - Production hardening: bounded ENQ timeout, cap on consecutive
     NAKs, thread-safe RetryMetrics, per-phase configurable timeouts,
     Log4j structured logging, null-safe property parsing, defensive
     copies of frame payloads, 30 JUnit tests.
-  - Moved ASTME1381TransmissionModeProperties, ASTME1381Frame,
-    ASTME1381FrameException, ASTME1381RetryMetrics to the shared
-    module (they were in server/ but used by client/).
+  - Moved shared classes (Properties, Frame, FrameException,
+    RetryMetrics) to the shared module.
   - Moved ASTME1381ClientProvider from server/ to client/.
   - Fixed transmissionmode.xml and plugin.xml class/jar references.
 
 v1.0.0 (original release)
   - Multiple inconsistencies prevented compilation and deployment.
-  See git history for details.
+
+============================================================
+ARCHITECTURE (client UI vs. server wire protocol)
+============================================================
+
+Mirth Connect 3.x / 4.x separates transmission-mode logic into two
+halves that run in different JVMs:
+
+CLIENT SIDE (Administrator UI process):
+  ASTME1381TransmissionModeClientPlugin
+    extends TransmissionModePlugin
+  ASTME1381ClientProvider
+    extends TransmissionModeClientProvider
+      (8 abstract methods: getSampleLabel, getSampleValue,
+       getProperties, getDefaultProperties, setProperties,
+       checkProperties, resetInvalidProperties, getSettingsComponent)
+  Responsibility: settings panel UI, sample messages,
+    property validation, default property provisioning.
+  NEVER sends or receives bytes over the wire.
+
+SERVER SIDE (Mirth Server process):
+  ASTME1381TransmissionModePlugin
+    extends TransmissionModeProvider
+      (declares getStreamHandler(...))
+  ASTME1381StreamHandler
+    extends StreamHandler
+      (overrides read(), write(byte[]), commit(boolean))
+  Responsibility: actual wire protocol - ENQ/ACK/NAK/EOT,
+    STX/FN/payload/ETX|ETB/checksum/CR/LF framing, retry, etc.
+
+The Mirth server process calls StreamHandler.read() and
+StreamHandler.write(byte[]) to move bytes over TCP/Serial.
 
 ============================================================
 BUILD PREREQUISITES
@@ -187,3 +220,4 @@ REFERENCES
   https://docs.nextgen.com/en-US/mirthc2ae-connect-user-guide-3299192/astm-e1381-transmission-mode-12617
 - Original upstream repo:
   https://github.com/bitdreamit/bitdreamit-astm-e1381-transmission
+

@@ -4,7 +4,7 @@
     xsi:noNamespaceSchemaLocation="plugin.xsd">
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.1.5</pluginVersion>
+    <pluginVersion>1.1.6</pluginVersion>
     <mirthVersion>4.x</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol.

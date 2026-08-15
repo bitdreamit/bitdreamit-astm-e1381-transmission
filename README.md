@@ -258,19 +258,51 @@ editor. v1.1.4 adds the missing override, returning
 
 ### `method does not override or implement a method from a supertype` on `send()`
 
-In Mirth 3.x / 4.x, `TransmissionModeClientProvider.send()` takes a
-`String` parameter (the message text), NOT `byte[]`. The original
-plugin code declared `send(OutputStream, InputStream, byte[])`, which
-never actually overrode the parent's abstract method — it was just a
-same-named method on the subclass that the Mirth framework would
-never have called.
+In Mirth Connect 3.x / 4.x, **`TransmissionModeClientProvider` does NOT
+declare a `send()` method**. The wire protocol is the **server side's**
+responsibility:
 
-v1.1.4 fixes this by changing the signature to
-`send(OutputStream, InputStream, String)`. The String is converted to
-bytes internally using `ISO-8859-1` so that char codes 0-255 map 1:1
-to byte values 0-255 — essential for ASTM E1381 because the protocol
-is byte-oriented and may carry arbitrary 8-bit values. UTF-8 would
-mangle any byte > 0x7F.
+| Side | Class | Has `send()`? |
+|------|-------|---------------|
+| Client (Administrator UI) | `TransmissionModeClientProvider` | **NO** |
+| Server (Mirth Server process) | `ASTME1381StreamHandler extends StreamHandler` | **YES** — via `write(byte[])` |
+
+The original v1.1.4 / v1.1.5 plugin code mistakenly put a `send()`
+method on `ASTME1381ClientProvider`, mirroring logic that already lived
+in `ASTME1381StreamHandler.write(byte[])`. Because Mirth 4.5.2's
+`TransmissionModeClientProvider` does not declare a `send()` method,
+the `@Override` annotation on the duplicate `send()` failed to compile.
+
+**Fix:** make sure you are using v1.1.6+ of this plugin, which removes
+the entire `send()` method (and all its helpers) from
+`ASTME1381ClientProvider`. The full ASTM E1381-02 wire protocol
+remains in `ASTME1381StreamHandler.write(byte[])` (server side) — no
+functionality is lost.
+
+### Architectural separation: client UI vs. server wire protocol
+
+Mirth Connect 3.x / 4.x separates transmission-mode logic into two
+halves that run in different JVMs:
+
+- **Client side** (runs inside the Mirth Administrator UI process on
+  the user's desktop): `ASTME1381TransmissionModeClientPlugin` →
+  `ASTME1381ClientProvider extends TransmissionModeClientProvider`.
+  Handles: settings panel UI, sample message buttons, property
+  validation, default property provisioning. **Never sends or
+  receives bytes over the wire.**
+
+- **Server side** (runs inside the Mirth Server process):
+  `ASTME1381TransmissionModePlugin extends TransmissionModeProvider`
+  returns an `ASTME1381StreamHandler extends StreamHandler` from its
+  `getStreamHandler(...)` factory. The Mirth server process then calls
+  `StreamHandler.read()` and `StreamHandler.write(byte[])` to move
+  bytes over TCP/Serial. All ENQ / ACK / NAK / EOT / framing /
+  checksum logic lives here.
+
+Do NOT put wire-protocol code in the client provider. If you find
+yourself adding a `send()` method to a class that extends
+`TransmissionModeClientProvider`, you are mixing the two halves —
+move the code to the server-side `StreamHandler` instead.
 
 ## Build & Deploy
 

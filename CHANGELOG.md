@@ -5,6 +5,107 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.6] - 2026-08-15 - "Move send() out of the client provider; fix architectural layering"
+
+This patch fixes the compile error that v1.1.5 left behind on
+`ASTME1381ClientProvider`:
+
+```
+ASTME1381ClientProvider.java:333:5
+java: method does not override or implement a method from a supertype
+```
+
+### Root cause (architectural)
+Mirth Connect 3.x / 4.x separates transmission-mode logic into two halves:
+
+| Side | Class | Responsibility | Wire protocol? |
+|------|-------|----------------|-----------------|
+| **Client** (Administrator UI) | `TransmissionModeClientProvider` | Settings panel, sample labels, property validation, default property provisioning | **NO** - never sends/receives bytes |
+| **Server** (Mirth Server process) | `TransmissionModeProvider` → `StreamHandler` | Actual `read()` / `write()` wire protocol | **YES** - moves bytes over TCP/Serial |
+
+`TransmissionModeClientProvider` (Mirth 4.5.2) declares exactly **eight**
+abstract methods:
+
+1. `getSampleLabel()`
+2. `getSampleValue()`
+3. `getProperties()`
+4. `getDefaultProperties()`
+5. `setProperties(TransmissionModeProperties)`
+6. `checkProperties(TransmissionModeProperties, boolean)`
+7. `resetInvalidProperties()`
+8. `getSettingsComponent()`
+
+**There is NO `send()` method on this class** — and there shouldn't be,
+because the client provider runs inside the Mirth Administrator UI
+process (on the user's desktop), not on the server. A `send()` method
+on the client provider would either:
+- never be called by Mirth (if Mirth only calls server-side handlers), or
+- if it were called, would try to send bytes from the user's desktop
+  process — which is obviously wrong.
+
+The v1.1.4 / v1.1.5 plugin code mistakenly added a `send()` method
+(and its helpers `establishConnection()`, `sendRecordChunked()`,
+`sendFrameWithRetry()`, `readByteWithTimeout()`, `splitIntoRecords()`)
+to `ASTME1381ClientProvider`. This logic was duplicated from — and
+should have lived exclusively in — the server-side
+`ASTME1381StreamHandler.write(byte[])`, which already implements the
+full ENQ / ACK / NAK / EOT / framing / checksum flow.
+
+Because Mirth 4.5.2's `TransmissionModeClientProvider` does not
+declare a `send()` method, the `@Override` annotation on the duplicate
+`send()` failed to compile.
+
+### Fixed
+- `client/ASTME1381ClientProvider.java`:
+  - **REMOVED** the entire `send(OutputStream, InputStream, String)`
+    method.
+  - **REMOVED** all of its private helpers:
+    - `establishConnection(OutputStream, InputStream)`
+    - `sendRecordChunked(OutputStream, InputStream, byte[], int)`
+    - `sendFrameWithRetry(OutputStream, InputStream, ASTME1381Frame)`
+    - `readByteWithTimeout(InputStream, long)`
+    - `splitIntoRecords(byte[])`
+  - **REMOVED** the now-unused `metrics` field, the `getMetrics()`
+    accessor, and the `ensureProps()` calls inside the removed methods.
+  - **REMOVED** the now-unused imports:
+    `org.apache.log4j.Logger`, `java.io.InputStream`,
+    `java.io.OutputStream`, `java.nio.charset.Charset`,
+    `java.util.List`, `java.util.ArrayList`,
+    `ASTME1381Frame`, `ASTME1381FrameException`,
+    `ASTME1381RetryMetrics`.
+  - Added a comprehensive class-level javadoc explaining the
+    client-side vs server-side architectural separation and listing
+    the eight required abstract method overrides.
+  - The class now has exactly **eight** `@Override` annotations —
+    one for each abstract method declared on
+    `TransmissionModeClientProvider` (Mirth 4.5.2).
+  - Added a `persistToPreferences()` helper called from
+    `resetInvalidProperties()` so the settings panel (which reads
+    from `java.util.prefs.Preferences`) stays in sync with the
+    reset values.
+
+### No functionality lost
+The full ASTM E1381-02 wire protocol (ENQ / ACK / NAK / EOT / STX-FN-
+payload-ETX|ETB-checksum-CR-LF framing with retry) remains in the
+**server-side** `ASTME1381StreamHandler.write(byte[])` method, which
+is unchanged in this release. The server-side plugin
+(`ASTME1381TransmissionModePlugin`) returns this StreamHandler from
+its `getStreamHandler(...)` factory; the Mirth server process then
+calls `StreamHandler.read()` and `StreamHandler.write(byte[])` to
+move bytes over the wire.
+
+### Verification
+After this patch, `ASTME1381ClientProvider`:
+- Has exactly 8 `@Override` annotations (no more, no less).
+- Has no `send()` method.
+- Has no Logger, no I/O streams, no byte[] chunking helpers.
+- Imports only: `ASTME1381Constants`, `ASTME1381TransmissionModeProperties`,
+  `TransmissionModeProperties`, `TransmissionModeClientProvider`,
+  `javax.swing.*`, `java.util.prefs.Preferences`.
+
+The project now correctly separates the client UI (this class) from
+the server-side wire protocol (`ASTME1381StreamHandler`).
+
 ## [1.1.5] - 2026-08-15 - "Add miglayout-core to classpath + implement remaining TransmissionModeClientProvider abstract methods"
 
 This patch fixes two issues that 1.1.4 left behind:
