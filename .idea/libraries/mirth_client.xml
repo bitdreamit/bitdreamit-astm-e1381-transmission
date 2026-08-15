@@ -3,6 +3,21 @@
     <CLASSES>
       <root url="jar://$PROJECT_DIR$/../mirth-libs/client/mirth-client.jar!/" />
       <root url="jar://$PROJECT_DIR$/../mirth-libs/client/mirth-client-core.jar!/" />
+      <!--
+        MigLayout 4.2 ships as TWO jars:
+          - miglayout-core-4.2.jar    -> contains net.miginfocom.layout.* (LC, AC, CC, etc.)
+          - miglayout-swing-4.2.jar   -> contains net.miginfocom.swing.MigLayout
+        The SettingsPanel imports net.miginfocom.swing.MigLayout (from swing jar)
+        but the swing jar's MigLayout class internally references net.miginfocom.layout.LC
+        (from the core jar) at construction time. Without BOTH jars on the
+        classpath, the compiler fails with:
+            java: cannot access net.miginfocom.layout.LC
+            class file for net.miginfocom.layout.LC not found
+        Mirth Connect 4.5.x ships both jars under $MIRTH_HOME/client/lib/
+        (or sometimes bundled inside mirth-client.jar as shaded classes).
+        Copy both to ../mirth-libs/client/.
+      -->
+      <root url="jar://$PROJECT_DIR$/../mirth-libs/client/miglayout-core-4.2.jar!/" />
       <root url="jar://$PROJECT_DIR$/../mirth-libs/client/miglayout-swing-4.2.jar!/" />
       <root url="jar://$PROJECT_DIR$/../mirth-libs/client/log4j-1.2-api-2.17.2.jar!/" />
     </CLASSES>

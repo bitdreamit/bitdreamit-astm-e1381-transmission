@@ -25,6 +25,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mirth.libs>${user.home}/mirth-libs</mirth.libs>
         <mirth.version>4.5.2</mirth.version>
+        <miglayout.version>4.2</miglayout.version>
         <junit.version>4.13.2</junit.version>
         <hamcrest.version>1.3</hamcrest.version>
         <maven.compiler.source>1.8</maven.compiler.source>
@@ -100,6 +101,32 @@
                 <version>${mirth.version}</version>
                 <scope>system</scope>
                 <systemPath>${mirth.libs}/server/donkey-server.jar</systemPath>
+            </dependency>
+            <!--
+                MigLayout 4.2 - ships as TWO jars in Mirth Connect 4.5.x:
+                  - miglayout-core-4.2.jar    -> net.miginfocom.layout.* (LC, AC, CC, ...)
+                  - miglayout-swing-4.2.jar   -> net.miginfocom.swing.MigLayout
+                Both jars are required because the swing MigLayout class
+                internally references LC at construction time. Without
+                miglayout-core on the compile classpath, javac fails with:
+                    java: cannot access net.miginfocom.layout.LC
+                    class file for net.miginfocom.layout.LC not found
+                MigLayout is only used by the client module
+                (ASTME1381TransmissionModeSettingsPanel).
+            -->
+            <dependency>
+                <groupId>com.miglayout</groupId>
+                <artifactId>miglayout-core</artifactId>
+                <version>${miglayout.version}</version>
+                <scope>system</scope>
+                <systemPath>${mirth.libs}/client/miglayout-core-${miglayout.version}.jar</systemPath>
+            </dependency>
+            <dependency>
+                <groupId>com.miglayout</groupId>
+                <artifactId>miglayout-swing</artifactId>
+                <version>${miglayout.version}</version>
+                <scope>system</scope>
+                <systemPath>${mirth.libs}/client/miglayout-swing-${miglayout.version}.jar</systemPath>
             </dependency>
             <dependency>
                 <groupId>org.apache.logging.log4j</groupId>

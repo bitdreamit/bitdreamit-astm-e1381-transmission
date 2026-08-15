@@ -67,15 +67,23 @@ bitdreamit-astm-e1381-transmission/
    ../mirth-libs/server/donkey-server.jar        # REQUIRED - provides com.mirth.connect.donkey.util.purge.Purgable
    ../mirth-libs/client/mirth-client.jar
    ../mirth-libs/client/mirth-client-core.jar      # shared model classes (incl. TransmissionModeProperties)
+   ../mirth-libs/client/miglayout-core-4.2.jar      # REQUIRED by the client SettingsPanel - provides net.miginfocom.layout.LC
+   ../mirth-libs/client/miglayout-swing-4.2.jar     # provides net.miginfocom.swing.MigLayout
    ../mirth-libs/test/junit-4.13.2.jar
    ../mirth-libs/test/hamcrest-core-1.3.jar
    ```
 
 2. In IntelliJ, declare three project-level libraries:
    - `mirth-server` = `mirth-server.jar` + `donkey-server.jar` + `mirth-client-core.jar`
-   - `mirth-client` = `mirth-client.jar` + `mirth-client-core.jar`
+   - `mirth-client` = `mirth-client.jar` + `mirth-client-core.jar` + `miglayout-core-4.2.jar` + `miglayout-swing-4.2.jar`
    - `junit-4`      = `junit-4.13.2.jar` + `hamcrest-core-1.3.jar`
 
+   > **Critical:** BOTH MigLayout jars are required.
+   > `miglayout-swing`'s `MigLayout` class internally references
+   > `net.miginfocom.layout.LC` (which lives in `miglayout-core`).
+   > Without `miglayout-core` on the classpath, javac fails with:
+   > `cannot access net.miginfocom.layout.LC`.
+   >
    > **Critical:** `donkey-server.jar` MUST be in the `mirth-server` library.
    > Without it, the `shared` module fails to compile with cascading
    > `cannot access com.mirth.connect.donkey.util.purge.Purgable` errors.
@@ -93,6 +101,35 @@ bitdreamit-astm-e1381-transmission/
 5. `Build → Build Project` (Ctrl+F9).
 
 ## Troubleshooting
+
+### `cannot access net.miginfocom.layout.LC`
+
+The `client` module's `ASTME1381TransmissionModeSettingsPanel` imports
+`net.miginfocom.swing.MigLayout` (from `miglayout-swing-4.2.jar`).
+MigLayout 4.2 ships as **two** jars:
+
+- `miglayout-core-4.2.jar` — contains `net.miginfocom.layout.*`
+  (the `LC`, `AC`, `CC` constraint classes)
+- `miglayout-swing-4.2.jar` — contains `net.miginfocom.swing.MigLayout`
+
+The swing jar's `MigLayout` class internally references
+`net.miginfocom.layout.LC` (from the core jar) at construction time,
+so BOTH jars must be on the compile classpath. If `miglayout-core` is
+missing, javac fails with:
+
+```
+java: cannot access net.miginfocom.layout.LC
+  class file for net.miginfocom.layout.LC not found
+```
+
+**Fix:** locate `miglayout-core-4.2.jar` in your Mirth Connect
+installation (`$MIRTH_HOME/client/lib/miglayout-core-4.2.jar` or
+similar) and copy it to `../mirth-libs/client/miglayout-core-4.2.jar`.
+Then in IntelliJ: File → Project Structure → Libraries → `mirth-client`
+→ click `+` → attach the jar.
+
+The IntelliJ project library definition in `.idea/libraries/mirth_client.xml`
+already references both jars; you just need the actual files on disk.
 
 ### `cannot access com.mirth.connect.donkey.util.purge.Purgable`
 
@@ -210,6 +247,30 @@ The original `ASTME1381ClientProvider` did not override it, so the
 class would not compile. v1.1.3 adds the missing override, returning a
 minimal ASTM E1381-02 sample payload (Header / Patient / Order /
 Result / Terminator records) for Mirth's "Send Test Message" feature.
+
+### `does not override abstract method getSampleLabel() in TransmissionModeClientProvider`
+
+In addition to `getSampleValue()`, the parent class also declares
+`getSampleLabel()` (also returning a `String`). This is the label
+shown next to the "Send Test Message" button in the Mirth channel
+editor. v1.1.4 adds the missing override, returning
+`"ASTM E1381 Sample"`.
+
+### `method does not override or implement a method from a supertype` on `send()`
+
+In Mirth 3.x / 4.x, `TransmissionModeClientProvider.send()` takes a
+`String` parameter (the message text), NOT `byte[]`. The original
+plugin code declared `send(OutputStream, InputStream, byte[])`, which
+never actually overrode the parent's abstract method — it was just a
+same-named method on the subclass that the Mirth framework would
+never have called.
+
+v1.1.4 fixes this by changing the signature to
+`send(OutputStream, InputStream, String)`. The String is converted to
+bytes internally using `ISO-8859-1` so that char codes 0-255 map 1:1
+to byte values 0-255 — essential for ASTM E1381 because the protocol
+is byte-oriented and may carry arbitrary 8-bit values. UTF-8 would
+mangle any byte > 0x7F.
 
 ## Build & Deploy
 

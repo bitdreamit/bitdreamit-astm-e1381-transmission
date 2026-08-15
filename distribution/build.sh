@@ -37,6 +37,17 @@ SHARED_MODEL_JAR="$CLIENT_LIB/mirth-client-core.jar"
 # "cannot access com.mirth.connect.donkey.util.purge.Purgable".
 DONKEY_SERVER_JAR="$SERVER_LIB/donkey-server.jar"
 
+# MigLayout 4.2 ships as TWO jars in Mirth Connect 4.5.x:
+#   - miglayout-core-4.2.jar    -> net.miginfocom.layout.* (LC, AC, CC, ...)
+#   - miglayout-swing-4.2.jar   -> net.miginfocom.swing.MigLayout
+# The swing jar's MigLayout class internally references net.miginfocom.layout.LC
+# (from the core jar) at construction time. Without BOTH jars, the client
+# module fails to compile with:
+#     java: cannot access net.miginfocom.layout.LC
+#     class file for net.miginfocom.layout.LC not found
+MIGLAYOUT_CORE_JAR="$CLIENT_LIB/miglayout-core-4.2.jar"
+MIGLAYOUT_SWING_JAR="$CLIENT_LIB/miglayout-swing-4.2.jar"
+
 # Shared compile classpath = client-core + donkey-server (for Purgable)
 SHARED_CP="$SHARED_MODEL_JAR:$DONKEY_SERVER_JAR"
 
@@ -47,9 +58,13 @@ SERVER_CP="$SERVER_CP:$SHARED_MODEL_JAR"
 
 # Client-side classpath - includes donkey-server.jar for the same Purgable
 # reason: the shared module's TransmissionModeProperties is loaded transitively.
+# Also includes BOTH miglayout jars because the swing jar references LC
+# (which lives in the core jar).
 CLIENT_CP="$CLIENT_LIB/mirth-client.jar"
 CLIENT_CP="$CLIENT_CP:$DONKEY_SERVER_JAR"
 CLIENT_CP="$CLIENT_CP:$SHARED_MODEL_JAR"
+CLIENT_CP="$CLIENT_CP:$MIGLAYOUT_CORE_JAR"
+CLIENT_CP="$CLIENT_CP:$MIGLAYOUT_SWING_JAR"
 
 # Test classpath (junit + hamcrest + server-side for testing Frame etc.)
 TEST_CP="$SERVER_CP:$TEST_LIB/junit-4.13.2.jar"

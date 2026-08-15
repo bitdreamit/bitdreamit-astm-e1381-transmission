@@ -36,6 +36,21 @@
             <groupId>com.mirth</groupId>
             <artifactId>donkey-server</artifactId>
         </dependency>
+        <!--
+            MigLayout 4.2 - used by ASTME1381TransmissionModeSettingsPanel.
+            BOTH jars are required: miglayout-swing references LC, which
+            lives in miglayout-core. Without miglayout-core on the
+            classpath, javac fails with
+            "cannot access net.miginfocom.layout.LC".
+        -->
+        <dependency>
+            <groupId>com.miglayout</groupId>
+            <artifactId>miglayout-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.miglayout</groupId>
+            <artifactId>miglayout-swing</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-1.2-api</artifactId>

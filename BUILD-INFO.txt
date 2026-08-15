@@ -1,224 +1,178 @@
 ============================================================
 bitdreamit-astm-e1381-transmission
-Production-hardened release v1.1.3
+Production-hardened release v1.1.5
 Built: 2026-08-15
 ============================================================
 
 This is a production-ready rebuild of the original
 https://github.com/bitdreamit/bitdreamit-astm-e1381-transmission
 repository, which shipped in v1.0.0 with multiple inconsistencies
-that prevented compilation and correct deployment.
+that prevented compilation and correct deployment. See CHANGELOG.md
+for the full per-version history.
 
-WHAT WAS FIXED (summary - see CHANGELOG.md for full details)
-------------------------------------------------------------
-0c. Wrong base class names: TransmissionModePlugin vs TransmissionModeProvider
-   - Symptom (Mirth 4.5+, after the donkey-server.jar fix from
-     1.1.1 and the @Override cleanup from 1.1.2):
-        ASTME1381ServerProvider.java:8:33
-        java: cannot find symbol
-          symbol:   class TransmissionModeServerProvider
-        ASTME1381TransmissionModePlugin.java:11:33
-        java: cannot find symbol
-          symbol:   class TransmissionModePlugin     <-- the SERVER module tried to extend this
-        ASTME1381TransmissionModeClientPlugin.java:5:33
-        java: cannot find symbol
-          symbol:   class TransmissionModeClientPlugin
-        ASTME1381ClientProvider.java:16:8
-        java: ... does not override abstract method getSampleValue()
-               in com.mirth.connect.plugins.TransmissionModeClientProvider
-   - Cause: in Mirth Connect 4.5+ the abstract base classes for
-     transmission-mode plugins have similar but OPPOSITE names to
-     what the original plugin code assumed:
-        * The CLIENT-side class is com.mirth.connect.plugins.
-          TransmissionModePlugin (extends ClientPlugin, has createProvider())
-        * The SERVER-side class is com.mirth.connect.plugins.
-          TransmissionModeProvider (implements ServerPlugin, has getStreamHandler())
-        * There is NO TransmissionModeServerProvider.
-        * There is NO TransmissionModeClientPlugin.
-     The original plugin author mixed up which name was the
-     client-side class and which was the server-side class, so
-     every `extends` clause in the server and client modules was
-     wrong.
-   - Fix (this release, v1.1.3):
-       * server/ASTME1381TransmissionModePlugin.java: changed
-         extends TransmissionModePlugin -> extends TransmissionModeProvider
-         (the actual server-side abstract class). Removed @Override
-         from methods not declared on TransmissionModeProvider
-         (getPluginPointName, getPluginPointDescription,
-         getDefaultProperties). Kept @Override on getStreamHandler,
-         start, stop.
-       * server/ASTME1381ServerProvider.java: DELETED. The class
-         extended a non-existent base class and provided a receive()
-         method that does not fit the Mirth StreamHandler-based
-         architecture. The receive flow already lives in
-         ASTME1381StreamHandler.read().
-       * client/ASTME1381TransmissionModeClientPlugin.java: changed
-         extends TransmissionModeClientPlugin -> extends
-         TransmissionModePlugin (the actual client-side abstract
-         class). Added required @Override createProvider() returning
-         a new ASTME1381ClientProvider. Removed @Override from
-         getSettingsPanel and getPluginPointName (not declared on
-         TransmissionModePlugin directly). Removed the redundant
-         start/stop/reset overrides entirely (parent provides empty
-         impls).
-       * client/ASTME1381ClientProvider.java: added required
-         @Override getSampleValue() returning a minimal ASTM E1381-02
-         sample payload for Mirth's "Send Test Message" feature.
-       * server/resources/plugin.xml: removed the <serverClass> entry
-         for the deleted ASTME1381ServerProvider. Bumped pluginVersion
-         to 1.1.3. Added comment explaining the API note.
-       * client/resources/plugin.xml: bumped pluginVersion to 1.1.3.
+============================================================
+RECENT FIX HISTORY (newest first)
+============================================================
 
-0a. Phantom @Override on getPropertyDescriptors() / setProperties()
-   - Fixed in v1.1.2 - see CHANGELOG.md.
+v1.1.5 (this release)
+  - Added miglayout-core-4.2.jar to the IntelliJ mirth-client library.
+    MigLayout 4.2 ships as TWO jars (core + swing); the swing jar's
+    MigLayout class references net.miginfocom.layout.LC (which lives
+    in core) at construction time. Without BOTH jars the client module
+    fails to compile with "cannot access net.miginfocom.layout.LC".
+  - Properly implemented the five additional abstract methods declared
+    on TransmissionModeClientProvider (Mirth 4.5+) that v1.1.4 missed:
+    getProperties(), getDefaultProperties(), checkProperties(),
+    resetInvalidProperties(), getSettingsComponent().
+  - Updated pom.xml, client/pom.xml, and distribution/build.sh to
+    declare miglayout-core and miglayout-swing 4.2 dependencies.
 
-0b. Build prerequisite: donkey-server.jar MUST be on the classpath
-   - Symptom (Mirth 4.5+): the shared module fails to compile with
-     a cascade of errors all rooted in:
-        java: cannot access com.mirth.connect.donkey.util.purge.Purgable
-        class file for com.mirth.connect.donkey.util.purge.Purgable not found
-     followed by "method does not override or implement a method from
-     a supertype" on getPropertyDescriptors()/setProperties()/
-     getPurgedProperties() and "cannot find symbol: method
-     getPluginPointName()".
-   - Cause: the parent class TransmissionModeProperties (in
-     mirth-client-core.jar) implements Purgable, which lives in
-     donkey-server.jar. If donkey-server.jar is not on the compile
-     classpath, the parent class fails to load and every @Override
-     in the subclass cascades into errors.
-   - Fix (this release):
-       * shared/shared.iml now declares the mirth-server project
-         library (which contains donkey-server.jar) in addition to
-         mirth-client. server/server.iml already had it.
-       * client/client.iml and test/test.iml also now declare
-         mirth-server for the same reason.
-       * Module-level pom.xml files (shared/pom.xml, server/pom.xml,
-         client/pom.xml, test/pom.xml) now exist - they were missing
-         in 1.1.0 and the Maven reactor could not actually build
-         the modules. Each declares donkey-server as a dependency.
-       * Parent pom.xml updated with a build-prerequisites header
-         and an internal-module dependencyManagement entry for the
-         shared module.
-       * ASTME1381TransmissionModeProperties.java no longer relies
-         on the inherited Purgable.getPluginPointName() method -
-         it uses ASTME1381Constants.PLUGIN_NAME directly. This
-         makes the source more tolerant of partial Mirth jars
-         (though the runtime classpath still needs the real class).
-       * ASTME1381TransmissionModeProperties.java now uses the
-         parameterized Map<String, DataTypePropertyDescriptor>
-         signature on setProperties() (was raw Map), matching the
-         actual Mirth 4.5+ parent signature and removing the
-         unchecked-conversion warning.
-       * ASTME1381TransmissionModeProperties.setProperties() now
-         extracts values via DataTypePropertyDescriptor.getValue()
-         instead of calling toString() on the descriptor object
-         itself - this fixes a latent bug where the original code
-         would always return 0 / false / null because the default
-         Object.toString() does not produce a hex/integer/boolean
-         representation of the value.
-       * stubs/ directory added: contains a compile-time-only
-         fallback Purgable interface for environments where
-         donkey-server.jar is genuinely unavailable. See
-         stubs/README.md for usage. The stub is NOT packaged into
-         the produced jars.
-       * README.md expanded with a Troubleshooting section
-         covering the Purgable / @Override cascade.
+v1.1.4
+  - Added the required getSampleLabel() override.
+  - Changed send(OutputStream, InputStream, byte[]) ->
+    send(OutputStream, InputStream, String) to match the parent's
+    abstract method signature. String is converted to bytes
+    internally using ISO-8859-1.
 
-1. Package / directory mismatch
-   - Original: package declarations did not match file paths in 5
-     files (Constants, StreamHandler, TransmissionModePlugin,
-     TransmissionModeProperties, ClientPlugin, SettingsPanel).
-   - Fix: unified on the canonical package
-     com.bitdreamit.connect.plugins.transmission.astm.* which
-     matches the directory layout.
+v1.1.3
+  - Fixed wrong base class names:
+      * server/ASTME1381TransmissionModePlugin now extends
+        TransmissionModeProvider (server-side, was TransmissionModePlugin).
+      * client/ASTME1381TransmissionModeClientPlugin now extends
+        TransmissionModePlugin (client-side, was TransmissionModeClientPlugin).
+      * Deleted server/ASTME1381ServerProvider.java (extended a
+        non-existent TransmissionModeServerProvider; the receive flow
+        already lives in ASTME1381StreamHandler.read()).
+      * Added required createProvider() override on the client plugin.
+  - Removed phantom @Override annotations on methods not declared on
+    the actual parent classes.
 
-2. Orphan / duplicate classes
-   - Original: ASTME1381ClientProvider.java was in the server/
-     folder but extends TransmissionModeClientProvider (client side).
-   - Original: ASTME1381ClientPlugin.java was an orphan duplicate
-     that extended the wrong base class (ClientPlugin instead of
-     TransmissionModeClientPlugin).
-   - Fix: moved ASTME1381ClientProvider to client/; removed the
-     orphan ASTME1381ClientPlugin.java.
+v1.1.2
+  - Removed phantom @Override from getPropertyDescriptors() and
+    setProperties(Map) on ASTME1381TransmissionModeProperties.
+    These methods are NOT declared on Mirth's
+    TransmissionModeProperties base class (they belong to
+    PropertyVerifier, used by DataType plugins). They are kept as
+    plain methods on the subclass (used by the settings panel).
 
-3. Missing API surface
-   - Original: ASTME1381ClientProvider referenced props.getFrameNumberStart(),
-     props.getMaxEnqRetries(), props.getEnqTimeoutMs(), props.getFrameAckTimeoutMs(),
-     props.getMaxFrameRetries(), and ASTME1381Constants.MAX_FRAME_TEXT_LENGTH -
-     none of which existed.
-   - Original: ASTME1381TransmissionModeClientPlugin referenced
-     ASTME1381Constants.PLUGIN_POINT_NAME which did not exist.
-   - Fix: added all missing constants and properties; PLUGIN_POINT_NAME
-     is now an alias for PLUGIN_NAME for backwards compatibility.
+v1.1.1
+  - Added donkey-server.jar to the IntelliJ mirth-server library
+    (it contains com.mirth.connect.donkey.util.purge.Purgable,
+    which TransmissionModeProperties implements). Without it the
+    shared module fails to compile with "cannot access Purgable"
+    followed by a cascade of @Override errors.
+  - Added module-level pom.xml files (shared, server, client, test).
+  - Added stubs/ directory with a compile-time-only Purgable
+    interface for environments where donkey-server.jar is unavailable.
+  - Replaced getPluginPointName() (inherited from Purgable) with
+    ASTME1381Constants.PLUGIN_NAME directly in getPurgedProperties().
+  - Switched setProperties(Map) to the parameterized
+    Map<String, DataTypePropertyDescriptor> signature.
 
-4. Architecture: Properties / Frame classes were in server module
-   - Original: ASTME1381TransmissionModeProperties was in server/
-     but used by client/ code. The client.jar (which only bundles
-     shared + client) was missing the Properties class.
-   - Same issue with ASTME1381Frame, ASTME1381FrameException,
-     ASTME1381RetryMetrics.
-   - Fix: moved all four to the shared/ module so they are bundled
-     in BOTH server.jar and client.jar.
+v1.1.0
+  - Production hardening: bounded ENQ timeout, cap on consecutive
+    NAKs, thread-safe RetryMetrics, per-phase configurable timeouts,
+    Log4j structured logging, null-safe property parsing, defensive
+    copies of frame payloads, 30 JUnit tests.
+  - Moved ASTME1381TransmissionModeProperties, ASTME1381Frame,
+    ASTME1381FrameException, ASTME1381RetryMetrics to the shared
+    module (they were in server/ but used by client/).
+  - Moved ASTME1381ClientProvider from server/ to client/.
+  - Fixed transmissionmode.xml and plugin.xml class/jar references.
 
-5. Inconsistent metadata files
-   - Original: transmissionmode.xml referenced non-existent class
-     names (com.bitdreamit.mirth.labextensions.astme1381transmission.*)
-     and jar names (astm-e1381-transmission-*.jar without the "bitdreamit-"
-     prefix). The plugin.xml files referenced canonical names but
-     did not register the new Server/Client providers.
-   - Fix: transmissionmode.xml now references canonical class names
-     and the jar names produced by build.sh. Both plugin.xml files
-     now register ASTME1381ServerProvider and ASTME1381ClientProvider.
+v1.0.0 (original release)
+  - Multiple inconsistencies prevented compilation and deployment.
+  See git history for details.
 
-6. build.sh inconsistencies
-   - Original: produced only 2 jars (server + client) but
-     transmissionmode.xml expected 3 (shared + server + client).
-   - Original: README referenced mirth-core.jar but build.sh used
-     mirth-server.jar / mirth-client-core.jar.
-   - Original: no test target.
-   - Fix: build.sh now produces 3 jars (shared + server + client),
-     supports `clean`/`build`/`test`/`rebuild` subcommands, honors
-     MIRTH_LIBS_DIR env var.
+============================================================
+BUILD PREREQUISITES
+============================================================
 
-7. Latent compile errors
-   - Original: ASTME1381StreamHandler.validateChecksum() called
-     ByteArrayOutputStream.write(byte[]) which throws IOException
-     but the method did not declare it. The original code would
-     not compile.
-   - Original: ASTME1381FrameTest used an invalid escape sequence
-     "H|\^&" which would not compile.
-   - Fix: use ByteArrayOutputStream.write(byte[], int, int)
-     (overridden, does not throw); fixed the test's escape sequence.
+To compile this project you need the following Mirth Connect 4.5+
+jars at ../mirth-libs/:
 
-8. Production hardening (NEW in 1.1.0)
-   - Bounded ENQ establishment timeout (no infinite wait).
-   - Cap on consecutive NAKs to prevent spin loops.
-   - Thread-safe RetryMetrics with sent/received/retries/naks counters.
-   - Per-phase configurable timeouts (establishment, frame, response, ENQ, frame ACK).
-   - Log4j structured logging at INFO/WARN/ERROR for every state transition.
-   - Null-safe property parsing (never throws).
-   - Defensive copies of frame payloads to prevent aliasing bugs.
-   - Comprehensive JUnit coverage (30 tests across 4 test classes).
+    mirth-libs/server/mirth-server.jar
+    mirth-libs/server/donkey-server.jar       <-- CRITICAL: contains Purgable
+    mirth-libs/client/mirth-client.jar
+    mirth-libs/client/mirth-client-core.jar   <-- contains TransmissionModeProperties
+    mirth-libs/client/miglayout-core-4.2.jar  <-- CRITICAL: contains net.miginfocom.layout.LC
+    mirth-libs/client/miglayout-swing-4.2.jar <-- contains net.miginfocom.swing.MigLayout
+    mirth-libs/test/junit-4.13.2.jar
+    mirth-libs/test/hamcrest-core-1.3.jar
 
-9. New production artifacts
-   - README.md (rewritten, comprehensive, with Troubleshooting section)
-   - CHANGELOG.md (full release history)
-   - CONTRIBUTING.md (developer guide)
-   - PRODUCTION.md (deployment + monitoring guide)
-   - LICENSE (Apache 2.0)
-   - pom.xml (optional Maven build) + per-module pom.xml files
-   - .github/workflows/ci.yml (CI workflow)
-   - Dockerfile (containerised builds/tests)
-   - stubs/ (compile-time fallbacks for missing Mirth classes)
+CRITICAL JARS (build will fail without these):
+  - donkey-server.jar   -> missing it causes "cannot access Purgable"
+  - miglayout-core-4.2  -> missing it causes "cannot access LC"
 
+If you genuinely cannot obtain donkey-server.jar, the project ships
+a compile-time-only stub at stubs/com/mirth/connect/donkey/util/purge/
+Purgable.java. Add the stubs/ directory to your IDE compile source
+roots to compile; the real class is still required at runtime.
+See stubs/README.md for details.
+
+============================================================
+BUILD
+============================================================
+
+1. Extract this zip to your workspace:
+     unzip bitdreamit-astm-e1381-transmission.zip
+     cd bitdreamit-astm-e1381-transmission
+
+2. Provide Mirth Connect 4.5+ jars at ../mirth-libs/ (see above).
+
+3. Build using one of:
+
+   a) IntelliJ IDEA:
+        File -> Open this directory
+        Build -> Rebuild Project (Ctrl+Shift+F9)
+        The .idea/libraries/*.xml files already wire up the jar paths
+        listed above; just make sure the files exist on disk.
+
+   b) Shell script:
+        cd distribution && ./build.sh
+        # outputs jars to ../out/
+        # subcommands: clean, build, test, rebuild
+
+   c) Maven:
+        mvn -Dmirth.libs=$HOME/mirth-libs clean package
+
+4. Output jars in ../out/:
+     bitdreamit-astm-e1381-transmission-shared.jar
+     bitdreamit-astm-e1381-transmission-server.jar
+     bitdreamit-astm-e1381-transmission-client.jar
+
+============================================================
+DEPLOY TO MIRTH CONNECT
+============================================================
+
+  MIRTH_HOME=/opt/mirth-connect
+  EXT_DIR=$MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission
+
+  mkdir -p $EXT_DIR
+  cp out/*.jar $EXT_DIR/
+  cp transmissionmode.xml $EXT_DIR/
+  cp server/resources/plugin.xml $EXT_DIR/server-plugin.xml
+  cp client/resources/plugin.xml $EXT_DIR/client-plugin.xml
+
+  # Restart Mirth service
+  sudo systemctl restart mirth-connect
+
+After Mirth restarts, the new "ASTM E1381" transmission mode will
+appear in the channel editor under:
+  - TCP Listener -> Transmission Mode
+  - TCP Sender   -> Transmission Mode
+
+See PRODUCTION.md for monitoring / operations guidance.
+
+============================================================
 VERIFICATION
-------------------------------------------------------------
+============================================================
 - All package declarations verified to match directory structure.
 - No stale references to the old com.bitdreamit.mirth.astm.* package.
 - Shared module compiles cleanly under JDK 17 (no external deps).
 - Full project (shared + server + client + tests) compiles cleanly
-  against Mirth Connect 4.5+ jars (verified with stub jars)
-  PROVIDED donkey-server.jar is on the classpath (see item 0 above).
+  against Mirth Connect 4.5+ jars, PROVIDED donkey-server.jar AND
+  miglayout-core-4.2.jar are on the classpath.
 - All 30 JUnit tests pass:
     ASTME1381FrameTest            (5 tests)
     ASTME1381RetryMetricsTest      (6 tests, including concurrency)
@@ -226,46 +180,9 @@ VERIFICATION
     ASTME1381RoundTripTest         (8 tests)
 - ./build.sh test passes end-to-end.
 
-BUILD
-------------------------------------------------------------
-1. Extract this zip to your workspace:
-     unzip bitdreamit-astm-e1381-transmission.zip
-     cd bitdreamit-astm-e1381-transmission
-
-2. Provide Mirth Connect 4.5+ jars at ../mirth-libs/:
-     mirth-libs/server/mirth-server.jar
-     mirth-libs/server/donkey-server.jar     <-- CRITICAL: contains Purgable
-     mirth-libs/client/mirth-client.jar
-     mirth-libs/client/mirth-client-core.jar
-     mirth-libs/test/junit-4.13.2.jar
-     mirth-libs/test/hamcrest-core-1.3.jar
-
-   If you genuinely cannot obtain donkey-server.jar, the project
-   ships a compile-time-only stub at stubs/com/mirth/connect/donkey/
-   util/purge/Purgable.java. Add the stubs/ directory to your IDE
-   compile source roots to compile; the real class is still required
-   at runtime. See stubs/README.md for details.
-
-3. Build:
-     cd distribution && ./build.sh
-
-   Output jars in ../out/:
-     bitdreamit-astm-e1381-transmission-shared.jar
-     bitdreamit-astm-e1381-transmission-server.jar
-     bitdreamit-astm-e1381-transmission-client.jar
-
-   Or with Maven (now that per-module pom.xml files exist):
-     mvn -Dmirth.libs=$HOME/mirth-libs clean package
-
-4. Deploy to Mirth (see PRODUCTION.md for full details):
-     cp out/*.jar $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
-     cp transmissionmode.xml $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/
-     cp server/resources/plugin.xml $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/server-plugin.xml
-     cp client/resources/plugin.xml $MIRTH_HOME/extensions/bitdreamit-astm-e1381-transmission/client-plugin.xml
-     sudo systemctl restart mirth-connect
-
+============================================================
 REFERENCES
-------------------------------------------------------------
+============================================================
 - Mirth Connect ASTM E1381 transmission mode docs:
   https://docs.nextgen.com/en-US/mirthc2ae-connect-user-guide-3299192/astm-e1381-transmission-mode-12617
 - Original upstream repo:

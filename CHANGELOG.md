@@ -5,6 +5,162 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.5] - 2026-08-15 - "Add miglayout-core to classpath + implement remaining TransmissionModeClientProvider abstract methods"
+
+This patch fixes two issues that 1.1.4 left behind:
+
+1. The `client` module failed to compile with
+   `cannot access net.miginfocom.layout.LC` because `miglayout-core-4.2.jar`
+   was missing from the IntelliJ `mirth-client` library definition.
+
+2. `TransmissionModeClientProvider` (Mirth 4.5+) declares additional
+   abstract methods (`getProperties`, `getDefaultProperties`,
+   `checkProperties`, `resetInvalidProperties`, `getSettingsComponent`)
+   that the v1.1.4 `ASTME1381ClientProvider` did not implement. The
+   user manually stubbed them out with `return null` / `return false`
+   to make the build pass; v1.1.5 properly implements them.
+
+### Fixed
+- `.idea/libraries/mirth_client.xml`:
+  - Added `miglayout-core-4.2.jar` to the `mirth-client` IntelliJ library.
+    MigLayout 4.2 ships as TWO jars; the `miglayout-swing` jar's
+    `MigLayout` class internally references `net.miginfocom.layout.LC`
+    (which lives in `miglayout-core`). Without `miglayout-core` on the
+    classpath, javac fails with `cannot access net.miginfocom.layout.LC`.
+    Added an inline comment explaining the dependency.
+- `pom.xml` (parent):
+  - Added `miglayout.version` property = `4.2`.
+  - Added `com.miglayout:miglayout-core` and `com.miglayout:miglayout-swing`
+    to `dependencyManagement` (system-scoped, pointing at
+    `${mirth.libs}/client/miglayout-{core,swing}-${miglayout.version}.jar`).
+- `client/pom.xml`:
+  - Added `<dependency>` entries for `miglayout-core` and `miglayout-swing`.
+- `distribution/build.sh`:
+  - Added `MIGLAYOUT_CORE_JAR` and `MIGLAYOUT_SWING_JAR` variables.
+  - Added both to `CLIENT_CP` so `javac` sees them when compiling the
+    client module.
+- `client/ASTME1381ClientProvider.java`:
+  - Properly implemented all five additional abstract methods declared
+    on `TransmissionModeClientProvider` (Mirth 4.5+):
+      * `getProperties()` - returns the stored `props` (lazily defaulted
+        via `ensureProps()` to a fresh `ASTME1381TransmissionModeProperties`
+        if never set; never returns `null`).
+      * `getDefaultProperties()` - returns a NEW
+        `ASTME1381TransmissionModeProperties()` instance on every call
+        (so callers can mutate without affecting this provider's state).
+      * `checkProperties(TransmissionModeProperties, boolean)` - validates
+        every property against its spec range:
+          - byte properties must be 0-255
+          - frame content / checksum lengths must be positive integers
+          - checksum algorithm must be one of the three known identifiers
+          - timeouts must be positive integers (or zero if `ignoreMissing`)
+          - frame number start must be 0 or 1
+        Returns `true` only if every property passes.
+      * `resetInvalidProperties()` - resets any property currently set
+        to an invalid value back to its spec default. Called by Mirth
+        after `checkProperties` returns `false` to auto-fix the channel
+        configuration. Operates in-place on the bean returned by
+        `getProperties()`.
+      * `getSettingsComponent()` - returns a new
+        `ASTME1381TransmissionModeSettingsPanel("ASTM E1381")` so the
+        channel editor and the standalone Settings panel share the
+        same UI component.
+  - Added a private `ensureProps()` helper that lazily defaults `props`
+    to a fresh `ASTME1381TransmissionModeProperties()` if null. Used by
+    `getProperties()`, `resetInvalidProperties()`, and `send()`.
+  - Added private `inByteRange(int)` and `inPositiveRange(int, boolean)`
+    helpers used by `checkProperties`.
+  - Updated `setProperties(TransmissionModeProperties)` to default to a
+    fresh properties bean if called with `null` (defensive: Mirth
+    should never do this, but if it does we'd rather NPE later in
+    `send()` than crash inside `setProperties()`).
+  - Updated class-level javadoc to list all required overrides (now
+    nine abstract methods on the parent) with their semantics.
+
+### Verification
+After this patch, `ASTME1381ClientProvider` correctly implements every
+abstract method declared on Mirth's
+`com.mirth.connect.plugins.TransmissionModeClientProvider`:
+
+- `getSampleLabel()` - returns "ASTM E1381 Sample"
+- `getSampleValue()` - returns a minimal ASTM E1381-02 sample payload
+- `getProperties()` - returns the stored props (never null)
+- `getDefaultProperties()` - returns a fresh defaults bean
+- `setProperties(TransmissionModeProperties)` - casts, validates, stores
+- `checkProperties(TransmissionModeProperties, boolean)` - validates ranges
+- `resetInvalidProperties()` - resets invalid props to defaults
+- `getSettingsComponent()` - returns the shared settings panel
+- `send(OutputStream, InputStream, String)` - drives the wire protocol
+
+The `client` module now compiles cleanly with both `miglayout-core-4.2.jar`
+and `miglayout-swing-4.2.jar` on the classpath.
+
+## [1.1.4] - 2026-08-15 - "Add getSampleLabel() + fix send() signature (String, not byte[])"
+
+This patch fixes the two remaining compile errors in
+`ASTME1381ClientProvider`:
+
+```
+ASTME1381ClientProvider.java:40:8
+java: ... does not override abstract method getSampleLabel()
+       in com.mirth.connect.plugins.TransmissionModeClientProvider
+ASTME1381ClientProvider.java:81:5
+java: method does not override or implement a method from a supertype
+```
+
+### Root cause
+`com.mirth.connect.plugins.TransmissionModeClientProvider` (Mirth 3.x /
+4.x) declares FOUR abstract methods that subclasses must implement:
+
+```java
+public abstract class TransmissionModeClientProvider {
+    public abstract String getSampleLabel();
+    public abstract String getSampleValue();
+    public abstract void setProperties(TransmissionModeProperties properties);
+    public abstract void send(OutputStream out, InputStream in, String message) throws Exception;
+}
+```
+
+The original plugin code:
+1. Did not implement `getSampleLabel()` at all.
+2. Implemented `send(OutputStream, InputStream, byte[])` - with a
+   `byte[]` parameter instead of `String`. Because the parameter type
+   did not match the parent's abstract method signature, this method
+   was NOT an override; it was just a same-named method on the
+   subclass that the Mirth framework would never have called. The
+   `@Override` annotation on it has been a compile error since v1.0.0
+   (it just didn't surface until v1.1.3 made the rest of the file
+   compile cleanly).
+
+### Fixed
+- `client/ASTME1381ClientProvider.java`:
+  - Added required `@Override getSampleLabel()` returning
+    `"ASTM E1381 Sample"` - the label shown next to the "Send Test
+    Message" button in the Mirth channel editor.
+  - Changed `send(OutputStream, InputStream, byte[])` ->
+    `send(OutputStream, InputStream, String)` to match the parent's
+    abstract method signature. The String is converted to bytes
+    internally using `Charset.forName("ISO-8859-1")` so that char
+    codes 0-255 map 1:1 to byte values 0-255. This is essential for
+    ASTM E1381 because the protocol is byte-oriented and may carry
+    arbitrary 8-bit values; UTF-8 would mangle any byte > 0x7F.
+  - Kept `@Override` on `getSampleValue()`, `setProperties()`, and
+    the new `send(OutputStream, InputStream, String)` - all four
+    are now real overrides of abstract methods on the parent class.
+  - Updated the class-level javadoc to list all four required
+    overrides and explain the String-vs-byte[] API contract.
+
+### Verification
+After this patch, `ASTME1381ClientProvider` correctly implements
+every abstract method declared on
+`com.mirth.connect.plugins.TransmissionModeClientProvider`:
+
+- `getSampleLabel()` - returns "ASTM E1381 Sample"
+- `getSampleValue()` - returns a minimal ASTM E1381-02 sample payload
+- `setProperties(TransmissionModeProperties)` - casts and stores
+- `send(OutputStream, InputStream, String)` - drives the
+  ENQ -> ACK -> frames -> EOT flow
+
 ## [1.1.3] - 2026-08-15 - "Fix wrong base class names (TransmissionModePlugin vs TransmissionModeProvider)"
 
 This patch fixes the wrong-base-class compile errors that 1.1.2 left
