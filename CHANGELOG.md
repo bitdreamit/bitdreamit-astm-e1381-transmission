@@ -5,6 +5,96 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.8] - 2026-08-15 - "Fix XStream CannotResolveClassException at extension-install time"
+
+This patch fixes the runtime error that occurred when the user tried
+to install the extension via the Mirth Administrator UI's
+**Extensions → Extension Manager → Install** dialog:
+
+```
+Unable to install extension: Method failed: HTTP/1.1 500 Internal Server Error
+Caused by: com.mirth.connect.client.core.ControllerException:
+  Error extracting extension.
+com.mirth.connect.donkey.util.xstream.SerializerException:
+com.thoughtworks.xstream.converters.ConversionException:
+---- Debugging information ----
+cause-exception     : com.thoughtworks.xstream.mapper.CannotResolveClassException
+cause-message       : com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin
+class               : java.util.ArrayList
+required-type       : java.util.ArrayList
+converter-type      : com.mirth.connect.model.converters.FilterTransformerElementsConverter
+path                : /pluginMetaData/serverClasses/serverClass
+class[1]            : com.mirth.connect.model.PluginMetaData
+required-type[1]    : com.mirth.connect.model.PluginMetaData
+converter-type[1]   : com.mirth.connect.model.converters.PluginMetaDataConverter
+version             : not available
+-------------------------------
+```
+
+### Root cause
+Mirth Connect's `DefaultExtensionController.extractExtension()` reads
+the extension's `plugin.xml` file using XStream. The XStream
+configuration maps the `<serverClass>` and `<clientClass>` elements
+to the `PluginClass` POJO, whose fields are:
+
+```java
+public class PluginClass {
+    private String name;             // <-- the FQCN goes HERE
+    private PluginLibrary library;
+}
+```
+
+The `name` field is exposed as an XML **attribute** via XStream's
+`useAttributeFor()` configuration. The correct XML form is therefore:
+
+```xml
+<serverClass name="com.example.MyPlugin">...</serverClass>
+```
+
+The v1.0.0 - v1.1.7 plugin code used `class="..."` instead:
+
+```xml
+<serverClass class="com.example.MyPlugin">...</serverClass>
+```
+
+The problem: `class` is **XStream's built-in reserved attribute name**
+for specifying the actual Java type to instantiate. When XStream
+encountered `class="com.bitdreamit....ASTME1381TransmissionModePlugin"`,
+it tried to **resolve and instantiate** that Java class — at
+extension-install time, before the extension's JARs were on the
+classpath. This produced `CannotResolveClassException`.
+
+(The reason the install used to "work" in earlier Mirth 3.x was
+that older XStream versions did not enforce class-resolution as
+strictly. XStream 1.4.x in Mirth 4.5+ has a `SecurityMapper` that
+rejects unresolvable classes.)
+
+### Fixed
+- `plugin.xml` (project root, Mirth 4.x consolidated form):
+  - Changed `<serverClass class="...">` -> `<serverClass name="...">`.
+  - Changed `<clientClass class="...">` -> `<clientClass name="...">`.
+  - Added an inline XML comment explaining why `name` (not `class`)
+    must be used, with a forward reference to this CHANGELOG entry.
+- `server/resources/plugin.xml` (Mirth 3.x split form, retained
+  for backwards compat):
+  - Same `class="..."` -> `name="..."` fix on `<serverClass>`.
+- `client/resources/plugin.xml` (Mirth 3.x split form):
+  - Same `class="..."` -> `name="..."` fix on `<clientClass>`.
+- Bumped `pluginVersion` to `1.1.8` in all three `plugin.xml` files.
+
+### Verification
+After this patch:
+- The Mirth Administrator UI's "Install Extension" dialog can
+  successfully install the extension (no more
+  `CannotResolveClassException`).
+- XStream parses `plugin.xml` correctly: the `name="..."` attribute
+  is mapped to the `PluginClass.name` String field, no class
+  instantiation is attempted at install time.
+- After Mirth restarts, the extension's JARs are loaded onto the
+  server-side and client-side classpaths, and the
+  `ASTME1381TransmissionModePlugin` class is then resolvable when
+  Mirth's connector framework needs it at runtime.
+
 ## [1.1.7] - 2026-08-15 - "Consolidate to single plugin.xml; add deploy.sh helper"
 
 This patch simplifies production deployment by consolidating the

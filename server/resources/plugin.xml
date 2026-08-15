@@ -4,7 +4,7 @@
     xsi:noNamespaceSchemaLocation="plugin.xsd">
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.1.7</pluginVersion>
+    <pluginVersion>1.1.8</pluginVersion>
     <mirthVersion>4.x</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol.
@@ -32,7 +32,7 @@ Transport-agnostic: works with TCP Listener / TCP Sender and Serial Connector.</
         ASTME1381StreamHandler.read().
     -->
     <serverClasses>
-        <serverClass class="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
+        <serverClass name="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
             <library path="bitdreamit-astm-e1381-transmission-server.jar" type="SERVER" />
         </serverClass>
     </serverClasses>

@@ -30,7 +30,7 @@
     <!-- =========================================================== -->
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.1.7</pluginVersion>
+    <pluginVersion>1.1.8</pluginVersion>
     <mirthVersion>3.8.0,3.8.1,3.9.0,3.9.1,3.10.0,3.10.1,3.11.0,3.12.0,4.0.0,4.0.1,4.1.0,4.1.1,4.2.0,4.3.0,4.4.0,4.4.1,4.4.2,4.5.0,4.5.1,4.5.2,4.5.3,4.5.4,4.6.0,4.6.1,4.6.2,4.7.0,4.7.1,4.7.2,26.3.0,26.3.1,26.6.0</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol.
@@ -55,7 +55,7 @@ Transport-agnostic: works with TCP Listener / TCP Sender and Serial Connector.</
       TransmissionModeServerProvider, which does not exist).
     -->
     <serverClasses>
-        <serverClass class="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
+        <serverClass name="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
             <library path="bitdreamit-astm-e1381-transmission-server.jar" type="SERVER" />
         </serverClass>
     </serverClasses>
@@ -70,10 +70,10 @@ Transport-agnostic: works with TCP Listener / TCP Sender and Serial Connector.</
       (settings panel, sample messages, property validation).
     -->
     <clientClasses>
-        <clientClass class="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin">
+        <clientClass name="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin">
             <library path="bitdreamit-astm-e1381-transmission-client.jar" type="CLIENT" />
         </clientClass>
-        <clientClass class="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider">
+        <clientClass name="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider">
             <library path="bitdreamit-astm-e1381-transmission-client.jar" type="CLIENT" />
         </clientClass>
     </clientClasses>

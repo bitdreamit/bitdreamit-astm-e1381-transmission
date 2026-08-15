@@ -4,7 +4,7 @@
     xsi:noNamespaceSchemaLocation="plugin.xsd">
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.1.7</pluginVersion>
+    <pluginVersion>1.1.8</pluginVersion>
     <mirthVersion>4.x</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol - client side.
@@ -13,10 +13,10 @@ Settings, Mode) used by channel authors when configuring an ASTM E1381
 destination connector. Also provides the client-side TransmissionModeClientProvider
 that drives the ENQ -> ACK -> frames -> EOT send flow.</description>
     <clientClasses>
-        <clientClass class="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin">
+        <clientClass name="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin">
             <library path="bitdreamit-astm-e1381-transmission-client.jar" type="CLIENT" />
         </clientClass>
-        <clientClass class="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider">
+        <clientClass name="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider">
             <library path="bitdreamit-astm-e1381-transmission-client.jar" type="CLIENT" />
         </clientClass>
     </clientClasses>

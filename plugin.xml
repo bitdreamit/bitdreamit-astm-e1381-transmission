@@ -30,7 +30,7 @@
     <!-- =========================================================== -->
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.1.7</pluginVersion>
+    <pluginVersion>1.1.8</pluginVersion>
     <mirthVersion>4.x</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol.
@@ -54,8 +54,19 @@ Transport-agnostic: works with TCP Listener / TCP Sender and Serial Connector.</
       com.mirth.connect.plugins.TransmissionModeProvider (NOT
       TransmissionModeServerProvider, which does not exist).
     -->
+    <!--
+      IMPORTANT: use name="..." (NOT class="...") on <serverClass> / <clientClass>.
+      Mirth's XStream-based PluginMetaDataConverter maps the `name` attribute
+      to the PluginClass.name field (which is a String storing the FQCN).
+      The `class` attribute is reserved by XStream as its built-in "type"
+      attribute; if used, XStream tries to *instantiate* the named Java class
+      at install time, before the extension JARs are on the classpath,
+      producing:
+          CannotResolveClassException: com.bitdreamit....ASTME1381TransmissionModePlugin
+      See CHANGELOG.md v1.1.8 for the full root-cause analysis.
+    -->
     <serverClasses>
-        <serverClass class="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
+        <serverClass name="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
             <library path="bitdreamit-astm-e1381-transmission-server.jar" type="SERVER" />
         </serverClass>
     </serverClasses>
@@ -70,10 +81,10 @@ Transport-agnostic: works with TCP Listener / TCP Sender and Serial Connector.</
       (settings panel, sample messages, property validation).
     -->
     <clientClasses>
-        <clientClass class="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin">
+        <clientClass name="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin">
             <library path="bitdreamit-astm-e1381-transmission-client.jar" type="CLIENT" />
         </clientClass>
-        <clientClass class="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider">
+        <clientClass name="com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider">
             <library path="bitdreamit-astm-e1381-transmission-client.jar" type="CLIENT" />
         </clientClass>
     </clientClasses>

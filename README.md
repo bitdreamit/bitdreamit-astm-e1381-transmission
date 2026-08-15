@@ -102,6 +102,49 @@ bitdreamit-astm-e1381-transmission/
 
 ## Troubleshooting
 
+### `CannotResolveClassException` at extension-install time (HTTP 500)
+
+When installing the extension via the Mirth Administrator UI's
+**Extensions → Extension Manager → Install** dialog, you may see:
+
+```
+Unable to install extension: Method failed: HTTP/1.1 500 Internal Server Error
+Caused by: ... CannotResolveClassException:
+  com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin
+path: /pluginMetaData/serverClasses/serverClass
+converter-type: com.mirth.connect.model.converters.FilterTransformerElementsConverter
+```
+
+**Root cause:** the `<serverClass>` and `<clientClass>` elements in
+`plugin.xml` were using a `class="..."` attribute to specify the
+plugin class name. Mirth's XStream-based `PluginMetaDataConverter`
+maps the `name` attribute (not `class`) to the `PluginClass.name`
+String field. The `class` attribute is XStream's built-in reserved
+attribute for specifying the actual Java type to instantiate — so
+when XStream encounters `class="com.bitdreamit....ASTME1381TransmissionModePlugin"`,
+it tries to *resolve and instantiate* that Java class at
+extension-install time, before the JARs are on the classpath.
+Result: `CannotResolveClassException`.
+
+**Fix:** make sure you are using v1.1.8+ of this plugin, which
+changed all three `plugin.xml` files to use `name="..."` instead of
+`class="..."`:
+
+```xml
+<!-- WRONG (v1.0.0 - v1.1.7) -->
+<serverClass class="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
+
+<!-- CORRECT (v1.1.8+) -->
+<serverClass name="com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin">
+```
+
+After the fix, XStream parses `plugin.xml` correctly: the `name="..."`
+attribute is mapped to the `PluginClass.name` String field, no class
+instantiation is attempted at install time, and the extension's JARs
+are loaded onto the server-side and client-side classpaths. The
+`ASTME1381TransmissionModePlugin` class is then resolvable when
+Mirth's connector framework needs it at runtime.
+
 ### `cannot access net.miginfocom.layout.LC`
 
 The `client` module's `ASTME1381TransmissionModeSettingsPanel` imports
