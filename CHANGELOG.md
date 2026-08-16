@@ -5,6 +5,103 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-08-16 - "Remove ASTME1381ClientProvider from clientClasses (silent ClassCastException)"
+
+This patch fixes the settings dialog not appearing in the channel
+editor. The "Frame Settings" link was greyed out / disabled.
+
+### Root cause
+`ASTME1381ClientProvider` was listed in `<clientClasses>` in
+`plugin.xml`. But `ASTME1381ClientProvider` extends
+`TransmissionModeClientProvider`, NOT `ClientPlugin`. When Mirth's
+Administrator UI tried to load it as a `ClientPlugin` (via
+`DefaultExtensionController.initPlugins()`), the cast failed
+silently (the client-side error is caught and not displayed as
+prominently as server-side errors). This caused the extension to
+not fully load on the client side, so `getSettingsComponent()` was
+never called, and the settings link was disabled.
+
+### Fixed
+- `plugin.xml` (project root):
+  - Removed `<string>...ASTME1381ClientProvider</string>` from
+    `<clientClasses>`. Only `ASTME1381TransmissionModeClientPlugin`
+    (which extends `TransmissionModePlugin` -> extends `ClientPlugin`)
+    remains. `ASTME1381ClientProvider` is instantiated by
+    `createProvider()` on the client plugin, not by Mirth's extension
+    loader.
+- `client/resources/plugin.xml`: same removal.
+- Bumped `pluginVersion` to `1.2.6`.
+- Improved settings panel layout to match the MLLM (MLLP) reference
+  style: two-column layout with settings on the left and a byte
+  abbreviations reference panel on the right. Hex fields use `0x`
+  prefix with abbreviation labels (e.g. `<ENQ>`, `<STX>`, `<ETX>`).
+
+## [1.2.5] - 2026-08-16 - "Fix ClassCastException at startup (Properties class wrongly in serverClasses)"
+
+This patch fixes the server startup failure:
+
+```
+ERROR (DefaultExtensionController:304): Error instantiating plugin:
+  ASTM E1381 Transmission Mode (bitdreamit)
+java.lang.ClassCastException:
+  class com.bitdreamit....ASTME1381TransmissionModeProperties
+  cannot be cast to class com.mirth.connect.plugins.ServerPlugin
+    at DefaultExtensionController.initPlugins(DefaultExtensionController.java:211)
+    at Mirth.startup(Mirth.java:334)
+```
+
+### Root cause
+Mirth's `DefaultExtensionController.initPlugins()` iterates through
+the `<serverClasses>` list in `plugin.xml` and tries to cast **every**
+class to `ServerPlugin` and instantiate it. Similarly, it casts every
+class in `<clientClasses>` to `ClientPlugin`.
+
+The v1.2.0 fix added `ASTME1381TransmissionModeProperties` to both
+`<serverClasses>` and `<clientClasses>` to resolve the
+`ForbiddenClassException`. But `ASTME1381TransmissionModeProperties`
+extends `TransmissionModeProperties` (which implements `Purgable`),
+NOT `ServerPlugin` or `ClientPlugin`. So Mirth failed with
+`ClassCastException` at startup.
+
+### What was wrong with v1.2.0's approach
+v1.2.0 assumed that listing a class in `<serverClasses>` /
+`<clientClasses>` would register it with XStream's security framework.
+That assumption was wrong — those lists are for **plugin class
+instantiation** only, not for XStream registration.
+
+Mirth registers ALL classes from the extension's JARs with XStream's
+security framework automatically (via `xStream.allowTypes()` in the
+`ExtensionController`). The `ForbiddenClassException` from v1.2.0
+was actually caused by the **stale Administrator UI cache** (the UI
+was using old extension metadata), NOT by the Properties class being
+missing from `<serverClasses>`.
+
+### Fixed
+- `plugin.xml` (project root):
+  - Removed `<string>...ASTME1381TransmissionModeProperties</string>`
+    from `<serverClasses>`. Only `ASTME1381TransmissionModePlugin`
+    (which extends `TransmissionModeProvider` → implements
+    `ServerPlugin`) remains.
+  - Removed `<string>...ASTME1381TransmissionModeProperties</string>`
+    from `<clientClasses>`. Only `ASTME1381TransmissionModeClientPlugin`
+    (which extends `TransmissionModePlugin` → extends `ClientPlugin`)
+    and `ASTME1381ClientProvider` (which extends
+    `TransmissionModeClientProvider` → extends `ClientPlugin`) remain.
+  - Updated comments to explain that ONLY `ServerPlugin` / `ClientPlugin`
+    subclasses belong in these lists.
+- `server/resources/plugin.xml` and `client/resources/plugin.xml`:
+  - Same removal of the Properties class from the class lists.
+- Bumped `pluginVersion` to `1.2.5`.
+
+### Settings dialog note
+The settings dialog (the "Frame Settings" link in the channel editor)
+was not appearing because the server was failing to start entirely
+due to the `ClassCastException`. Once the server starts successfully
+with v1.2.5, the extension will load properly and the settings
+dialog should appear after a full clean reinstall (uninstall old
+extension → restart server → fully close Administrator UI →
+reinstall → restart server → fully close Administrator UI again).
+
 ## [1.2.4] - 2026-08-16 - "Fix settings dialog not appearing (Frame Settings link greyed out)"
 
 This patch fixes the issue where the "Frame Settings" link in the

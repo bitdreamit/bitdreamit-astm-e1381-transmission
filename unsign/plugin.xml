@@ -64,7 +64,7 @@
 
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.2.4</pluginVersion>
+    <pluginVersion>1.2.6</pluginVersion>
     <mirthVersion>4.5.2</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol.
@@ -76,36 +76,41 @@ Transport-agnostic: works with TCP Listener / TCP Sender and Serial Connector.</
 
     <!--
       Server-side classes (loaded by the Mirth Server process).
-      Each string element is the FQCN of a server-side plugin class
-      OR a class that needs XStream deserialization registration.
 
-      IMPORTANT: the Properties subclass MUST be listed here so
-      that Mirth's ExtensionController registers it with XStream's
-      security framework. Without this registration, XStream
-      rejects the class at channel-deserialization time with:
-        ForbiddenClassException:
-        com.bitdreamit....ASTME1381TransmissionModeProperties
-      See CHANGELOG.md v1.2.0 for the full root-cause analysis.
+      IMPORTANT: ONLY list classes that extend ServerPlugin here.
+      Mirth's DefaultExtensionController.initPlugins() iterates
+      through this list and tries to cast each class to ServerPlugin
+      and instantiate it. If a non-ServerPlugin class is listed,
+      Mirth fails with ClassCastException at startup.
+
+      The ASTME1381TransmissionModeProperties class does NOT extend
+      ServerPlugin (it extends TransmissionModeProperties which
+      implements Purgable), so it MUST NOT be listed here. Mirth
+      registers ALL classes from the extension JARs with XStream's
+      security framework automatically; the Properties class does
+      not need to be listed here for XStream registration.
     -->
     <serverClasses>
         <string>com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin</string>
-        <string>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</string>
     </serverClasses>
 
     <!--
       Client-side classes (loaded by the Mirth Administrator UI).
-      Each string element is the FQCN of a client-side plugin class
-      OR a class that needs XStream deserialization registration.
 
-      The Properties subclass is listed here too because the
-      Administrator UI deserializes channel XML locally when
-      editing/viewing channels; the client-side XStream instance
-      needs the class registered too.
+      IMPORTANT: ONLY list classes that extend ClientPlugin here.
+      Mirth's DefaultExtensionController.initPlugins() iterates
+      through this list and tries to cast each class to ClientPlugin
+      and instantiate it. If a non-ClientPlugin class is listed,
+      Mirth fails with ClassCastException at startup (silently on
+      the client side).
+
+      ASTME1381ClientProvider extends TransmissionModeClientProvider
+      (NOT ClientPlugin), so it MUST NOT be listed here. It is
+      instantiated by createProvider() on the client plugin, not by
+      Mirth's extension loader.
     -->
     <clientClasses>
         <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin</string>
-        <string>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381ClientProvider</string>
-        <string>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</string>
     </clientClasses>
 
     <!--

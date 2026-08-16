@@ -1,38 +1,39 @@
 ============================================================
 bitdreamit-astm-e1381-transmission
-Production-hardened release v1.2.4
+Production-hardened release v1.2.6
 Built: 2026-08-16
 ============================================================
 
 This is a production-ready rebuild of the original
 https://github.com/bitdreamit/bitdreamit-astm-e1381-transmission
-repository, which shipped in v1.0.0 with multiple inconsistencies
-that prevented compilation and correct deployment. See CHANGELOG.md
-for the full per-version history.
+repository. See CHANGELOG.md for the full per-version history.
 
 ============================================================
 RECENT FIX HISTORY (newest first)
 ============================================================
 
-v1.2.4 (this release)
-  - Fixed settings dialog not appearing in channel editor.
-    The "Frame Settings" link was greyed out / disabled because
-    the settings panel extended AbstractSettingsPanel (designed for
-    Mirth's Settings view, not the channel editor's modal dialog).
-    The AbstractSettingsPanel constructor failed silently when
-    invoked from the channel editor context, causing Mirth to
-    disable the link.
-    Fix: panel now extends JPanel, uses standard Swing components
-    (JTextField, JCheckBox, JComboBox) and GridBagLayout instead
-    of MigLayout. No dependency on AbstractSettingsPanel,
-    MirthTextField, MirthCheckBox, MirthComboBox, or MigLayout.
-    Also removed the unused getSettingsPanel() method from the
-    client plugin (it was not called by Mirth and created an
-    unnecessary AbstractSettingsPanel dependency).
+v1.2.6 (this release)
+  - Removed ASTME1381ClientProvider from <clientClasses>. It
+    extends TransmissionModeClientProvider (NOT ClientPlugin), so
+    Mirth's Administrator UI failed silently when trying to load
+    it as a ClientPlugin. This caused the extension to not fully
+    load on the client side, disabling the "Frame Settings" link.
+    ASTME1381ClientProvider is instantiated by createProvider(),
+    not by Mirth's extension loader.
+  - Improved settings panel layout to match the MLLM reference:
+    two-column layout with settings on the left and byte
+    abbreviations reference on the right.
+
+v1.2.5
+  - Removed ASTME1381TransmissionModeProperties from serverClasses
+    and clientClasses (caused ClassCastException at server startup).
+
+v1.2.4
+  - Settings panel now extends JPanel (not AbstractSettingsPanel),
+    uses standard Swing components + GridBagLayout (not MigLayout).
 
 v1.2.3
-  - Fixed XmlPullParserException at install time. XML comments
-    contained decorative lines of dashes which XML 1.0 forbids.
+  - Fixed XmlPullParserException (XML comments had illegal dashes).
 
 v1.2.2
   - Fixed "duplicate entry: com/" ZipException in build.sh on JDK 8.
@@ -40,42 +41,10 @@ v1.2.2
 v1.2.1
   - Added log4j-1.2-api-2.17.2.jar to build.sh SERVER_CP.
 
-v1.2.0
-  - Added ASTME1381TransmissionModeProperties to serverClasses and
-    clientClasses in plugin.xml for XStream security registration.
-
 v1.1.9
   - Rewrote plugin.xml to use the actual Mirth 4.5.2 format.
 
-v1.1.8
-  - Changed serverClass class to name attribute (partial fix).
-
-v1.1.7
-  - Consolidated to single plugin.xml. Added deploy.sh helper.
-
-v1.1.6
-  - Removed send() from ASTME1381ClientProvider.
-
-v1.1.5
-  - Added miglayout-core-4.2.jar. Implemented abstract methods.
-
-v1.1.4
-  - Added getSampleLabel() override.
-
-v1.1.3
-  - Fixed wrong base class names. Deleted ASTME1381ServerProvider.
-
-v1.1.2
-  - Removed phantom @Override.
-
-v1.1.1
-  - Added donkey-server.jar. Added pom.xml files. Added stubs/.
-
-v1.1.0
-  - Production hardening: timeouts, RetryMetrics, Log4j, 30 tests.
-
-v1.0.0 (original release)
-  - Multiple inconsistencies prevented compilation and deployment.
+(Earlier versions: see CHANGELOG.md)
 
 ============================================================
 PRODUCTION FILE INVENTORY (5 files)
