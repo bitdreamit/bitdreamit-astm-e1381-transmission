@@ -1,6 +1,5 @@
 package com.bitdreamit.connect.plugins.transmission.astm.client;
 
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
@@ -12,11 +11,14 @@ import javax.swing.JPanel;
 import javax.swing.GroupLayout;
 
 /**
- * Small settings panel with a settings button.
+ * Small settings panel with a wrench icon button.
  *
  * <p>Mirrors Mirth's MLLPModeSettingsPanel: a small panel containing
- * just a settings button. When the user clicks the button, the
- * {@link ASTME1381SettingsDialog} modal dialog opens.</p>
+ * just a wrench icon button (no text). When the user clicks the button,
+ * the {@link ASTME1381SettingsDialog} modal dialog opens.</p>
+ *
+ * <p>The icon used is the same wrench.png that Mirth's MLLP plugin uses:
+ * {@code com/mirth/connect/client/ui/images/wrench.png}.</p>
  *
  * <p>Returned by {@code getSettingsComponent()} on
  * {@link ASTME1381ClientProvider}. Mirth displays this panel inline
@@ -32,35 +34,47 @@ public class ASTME1381SettingsPanel extends JPanel {
     }
 
     private void initComponents() {
-        setBackground(new Color(0xF0, 0xF0, 0xF0));
+        // Load the wrench icon from Mirth's built-in images
+        // (same icon used by MLLPModeSettingsPanel)
+        ImageIcon wrenchIcon = null;
+        try {
+            java.net.URL iconUrl = getClass().getClassLoader()
+                .getResource("com/mirth/connect/client/ui/images/wrench.png");
+            if (iconUrl != null) {
+                wrenchIcon = new ImageIcon(iconUrl);
+            }
+        } catch (Exception e) {
+            // Icon not found - will use text fallback
+        }
 
         settingsButton = new JButton();
-        settingsButton.setText("Frame Settings");
-        settingsButton.setMargin(new Insets(2, 6, 2, 6));
-        settingsButton.setFocusable(false);
-        settingsButton.setPreferredSize(new Dimension(100, 22));
-        settingsButton.setMaximumSize(new Dimension(120, 22));
-        settingsButton.setMinimumSize(new Dimension(80, 22));
-        settingsButton.setContentAreaFilled(false);
-        settingsButton.setBorderPainted(false);
-        settingsButton.setOpaque(false);
+        if (wrenchIcon != null) {
+            settingsButton.setIcon(wrenchIcon);
+        } else {
+            settingsButton.setText("Frame Settings");
+        }
 
-        // Use GroupLayout to match Mirth's MLLP layout style
+        // Match Mirth's MLLP button style: small, no border, no fill,
+        // just the icon
+        settingsButton.setMargin(new Insets(0, 0, 0, 0));
+        settingsButton.setFocusable(false);
+        settingsButton.setBorderPainted(false);
+        settingsButton.setContentAreaFilled(false);
+        settingsButton.setOpaque(false);
+        settingsButton.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
+
+        // Use GroupLayout to center the button in the panel
         GroupLayout layout = new GroupLayout(this);
         setLayout(layout);
         layout.setHorizontalGroup(
-            layout.createParallelGroup(GroupLayout.Alignment.LEADING)
-            .addGroup(layout.createSequentialGroup()
-                .addContainerGap()
-                .addComponent(settingsButton)
-                .addContainerGap())
+            layout.createParallelGroup(GroupLayout.Alignment.CENTER)
+            .addGroup(layout.createParallelGroup(GroupLayout.Alignment.CENTER)
+                .addComponent(settingsButton))
         );
         layout.setVerticalGroup(
-            layout.createParallelGroup(GroupLayout.Alignment.LEADING)
-            .addGroup(layout.createSequentialGroup()
-                .addContainerGap()
-                .addComponent(settingsButton)
-                .addContainerGap())
+            layout.createParallelGroup(GroupLayout.Alignment.CENTER)
+            .addGroup(layout.createParallelGroup(GroupLayout.Alignment.CENTER)
+                .addComponent(settingsButton))
         );
 
         settingsButton.addActionListener(new ActionListener() {
