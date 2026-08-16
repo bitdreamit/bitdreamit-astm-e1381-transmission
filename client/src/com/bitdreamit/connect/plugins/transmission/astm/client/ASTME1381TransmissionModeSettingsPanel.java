@@ -1,277 +1,334 @@
 package com.bitdreamit.connect.plugins.transmission.astm.client;
 
 import java.awt.Color;
-import java.util.prefs.Preferences;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 
 import javax.swing.BorderFactory;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JTextField;
 import javax.swing.border.TitledBorder;
 
-import com.mirth.connect.client.ui.AbstractSettingsPanel;
-import com.mirth.connect.client.ui.components.MirthCheckBox;
-import com.mirth.connect.client.ui.components.MirthComboBox;
-import com.mirth.connect.client.ui.components.MirthTextField;
-
-import net.miginfocom.swing.MigLayout;
-
 /**
- * ASTM E1381-95 Transmission Mode Settings Panel
- * Production-grade UI matching NextGen's screenshot with premium additions.
+ * ASTM E1381-02 Transmission Mode Settings Panel.
+ *
+ * <p>This panel is returned by
+ * {@code ASTME1381ClientProvider.getSettingsComponent()} and is displayed
+ * inside Mirth's "Transmission Mode Settings" modal dialog when the user
+ * clicks the "Frame Settings" link in the channel editor.</p>
+ *
+ * <p><b>Design notes (v1.2.4):</b></p>
+ * <ul>
+ *   <li>Extends {@link JPanel} directly (NOT {@code AbstractSettingsPanel}).
+ *       The previous version extended {@code AbstractSettingsPanel}, which
+ *       is designed for Mirth's Settings -> Extensions global view, not for
+ *       the channel editor's inline modal dialog. When the channel editor
+ *       tried to instantiate the panel, the {@code AbstractSettingsPanel}
+ *       constructor failed silently, causing Mirth to disable the
+ *       "Frame Settings" link.</li>
+ *   <li>Uses standard Swing components ({@link JTextField},
+ *       {@link JCheckBox}, {@link JComboBox}) instead of Mirth's custom
+ *       {@code MirthTextField} / {@code MirthCheckBox} / {@code MirthComboBox}.
+ *       The Mirth custom components may have different constructor
+ *       signatures in different Mirth versions; using standard Swing
+ *       components eliminates this risk entirely.</li>
+ *   <li>Uses {@link GridBagLayout} instead of {@code MigLayout}. This
+ *       removes the dependency on {@code miglayout-swing-4.2.jar} and
+ *       {@code miglayout-core-4.2.jar} at runtime, which simplifies
+ *       deployment. GridBagLayout is part of the JDK and always available.</li>
+ * </ul>
  */
-public class ASTME1381TransmissionModeSettingsPanel extends AbstractSettingsPanel {
+public class ASTME1381TransmissionModeSettingsPanel extends JPanel {
 
-    private static final String PREFIX = "com.bitdreamit.astm.e1381.";
+    private static final long serialVersionUID = 1L;
 
-    // Frame Settings
-    private MirthTextField enquiryField;
-    private MirthTextField stxField;
-    private MirthTextField maxContentLengthField;
-    private MirthTextField etbField;
-    private MirthTextField etxField;
-    private MirthTextField checksumLengthField;
-    private MirthTextField frameTerminatorField;
-    private MirthTextField eotField;
+    // --- Frame Settings fields ---
+    private JTextField enquiryField;
+    private JTextField stxField;
+    private JTextField maxContentLengthField;
+    private JTextField etbField;
+    private JTextField etxField;
+    private JTextField checksumLengthField;
+    private JTextField frameTerminatorField;
+    private JTextField eotField;
 
-    // Validation Settings
-    private MirthCheckBox validateFrameNumberBox;
-    private MirthCheckBox ignoreServerCancelBox;
-    private MirthCheckBox useChecksumBox;
-    private MirthCheckBox strictValidationBox;
-    private MirthComboBox checksumAlgorithmBox;
-    private MirthCheckBox bidirectionalBox;
-    private MirthTextField ackField;
-    private MirthTextField nakField;
+    // --- Validation Settings fields ---
+    private JCheckBox validateFrameNumberBox;
+    private JCheckBox ignoreServerCancelBox;
+    private JCheckBox useChecksumBox;
+    private JCheckBox strictValidationBox;
+    private JComboBox<String> checksumAlgorithmBox;
+    private JCheckBox bidirectionalBox;
+    private JTextField ackField;
+    private JTextField nakField;
 
-    // Connection Settings
-    private MirthTextField maxTransferAttemptsField;
-    private MirthTextField establishmentTimeoutField;
-    private MirthTextField contentionTimeoutField;
-    private MirthTextField frameTimeoutField;
-    private MirthTextField responseTimeoutField;
+    // --- Connection Settings fields ---
+    private JTextField maxTransferAttemptsField;
+    private JTextField establishmentTimeoutField;
+    private JTextField contentionTimeoutField;
+    private JTextField frameTimeoutField;
+    private JTextField responseTimeoutField;
 
-    // Mode
-    private MirthCheckBox serverModeBox;
+    // --- Mode field ---
+    private JCheckBox serverModeBox;
 
-    public ASTME1381TransmissionModeSettingsPanel(String tabName) {
-        super(tabName);
+    public ASTME1381TransmissionModeSettingsPanel() {
         initComponents();
         initLayout();
-        doRefresh();
+        loadDefaults();
     }
+
+    public ASTME1381TransmissionModeSettingsPanel(String tabName) {
+        this();
+        // tabName is accepted for backwards compatibility with the old
+        // AbstractSettingsPanel-based constructor, but is not used since
+        // we now extend JPanel directly.
+    }
+
+    // ------------------------------------------------------------------
+    // Component initialization
+    // ------------------------------------------------------------------
 
     private void initComponents() {
-        enquiryField              = new MirthTextField();
-        stxField                  = new MirthTextField();
-        maxContentLengthField     = new MirthTextField();
-        etbField                  = new MirthTextField();
-        etxField                  = new MirthTextField();
-        checksumLengthField       = new MirthTextField();
-        frameTerminatorField      = new MirthTextField();
-        eotField                  = new MirthTextField();
+        enquiryField              = new JTextField(10);
+        stxField                  = new JTextField(10);
+        maxContentLengthField     = new JTextField(10);
+        etbField                  = new JTextField(10);
+        etxField                  = new JTextField(10);
+        checksumLengthField       = new JTextField(10);
+        frameTerminatorField      = new JTextField(12);
+        eotField                  = new JTextField(10);
 
-        validateFrameNumberBox    = new MirthCheckBox();
-        ignoreServerCancelBox     = new MirthCheckBox();
-        useChecksumBox            = new MirthCheckBox();
-        strictValidationBox       = new MirthCheckBox();
-        checksumAlgorithmBox      = new MirthComboBox();
-        bidirectionalBox          = new MirthCheckBox();
-        ackField                  = new MirthTextField();
-        nakField                  = new MirthTextField();
+        validateFrameNumberBox    = new JCheckBox();
+        ignoreServerCancelBox     = new JCheckBox();
+        useChecksumBox            = new JCheckBox();
+        strictValidationBox       = new JCheckBox();
+        checksumAlgorithmBox      = new JComboBox<>(
+            new String[]{"Add Mod 256", "XOR", "None"});
+        bidirectionalBox          = new JCheckBox();
+        ackField                  = new JTextField(10);
+        nakField                  = new JTextField(10);
 
-        maxTransferAttemptsField  = new MirthTextField();
-        establishmentTimeoutField = new MirthTextField();
-        contentionTimeoutField    = new MirthTextField();
-        frameTimeoutField         = new MirthTextField();
-        responseTimeoutField      = new MirthTextField();
+        maxTransferAttemptsField  = new JTextField(10);
+        establishmentTimeoutField = new JTextField(10);
+        contentionTimeoutField    = new JTextField(10);
+        frameTimeoutField         = new JTextField(10);
+        responseTimeoutField      = new JTextField(10);
 
-        serverModeBox             = new MirthCheckBox();
-
-        // Defaults
-        enquiryField.setText("0x05");
-        stxField.setText("0x02");
-        maxContentLengthField.setText("240");
-        etbField.setText("0x17");
-        etxField.setText("0x03");
-        checksumLengthField.setText("2");
-        frameTerminatorField.setText("0x000A");
-        eotField.setText("0x04");
-
-        validateFrameNumberBox.setSelected(true);
-        ignoreServerCancelBox.setSelected(false);
-        useChecksumBox.setSelected(true);
-        strictValidationBox.setSelected(false);
-        checksumAlgorithmBox.setModel(new javax.swing.DefaultComboBoxModel<>(
-            new String[]{"Add Mod 256", "XOR", "None"}));
-        bidirectionalBox.setSelected(true);
-        ackField.setText("0x06");
-        nakField.setText("0x15");
-
-        maxTransferAttemptsField.setText("6");
-        establishmentTimeoutField.setText("15000");
-        contentionTimeoutField.setText("20000");
-        frameTimeoutField.setText("30000");
-        responseTimeoutField.setText("15000");
-
-        serverModeBox.setSelected(true);
+        serverModeBox             = new JCheckBox();
     }
+
+    // ------------------------------------------------------------------
+    // Layout
+    // ------------------------------------------------------------------
 
     private void initLayout() {
         setBackground(Color.WHITE);
-        setLayout(new MigLayout("insets 12, fillx, wrap 2", "[right][left,grow]", ""));
+        setLayout(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(4, 4, 4, 4);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridwidth = 2;
 
         // --- Frame Settings Panel ---
-        JPanel framePanel = new JPanel(new MigLayout("insets 8, fillx, wrap 2", "[right][left,grow]"));
-        framePanel.setBackground(Color.WHITE);
-        framePanel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(204, 204, 204)),
-            "Frame Settings", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION,
-            new java.awt.Font("Tahoma", java.awt.Font.BOLD, 11)));
-
-        framePanel.add(new JLabel("Enquiry (ENQ):"));      framePanel.add(enquiryField, "w 80!");
-        framePanel.add(new JLabel("Start of Frame (STX):")); framePanel.add(stxField, "w 80!");
-        framePanel.add(new JLabel("Max Content Length:"));   framePanel.add(maxContentLengthField, "w 80!");
-        framePanel.add(new JLabel("Intermediate End (ETB):")); framePanel.add(etbField, "w 80!");
-        framePanel.add(new JLabel("End of Frame (ETX):"));   framePanel.add(etxField, "w 80!");
-        framePanel.add(new JLabel("Checksum Byte Length:")); framePanel.add(checksumLengthField, "w 80!");
-        framePanel.add(new JLabel("Frame Terminator:"));     framePanel.add(frameTerminatorField, "w 120!");
-        framePanel.add(new JLabel("End of Transmission (EOT):")); framePanel.add(eotField, "w 80!");
+        add(createFrameSettingsPanel(), gbc);
+        gbc.gridy++;
 
         // --- Validation Settings Panel ---
-        JPanel validationPanel = new JPanel(new MigLayout("insets 8, fillx, wrap 2", "[right][left,grow]"));
-        validationPanel.setBackground(Color.WHITE);
-        validationPanel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(204, 204, 204)),
-            "Validation Settings", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION,
-            new java.awt.Font("Tahoma", java.awt.Font.BOLD, 11)));
-
-        validationPanel.add(new JLabel("Validate Frame Number:")); validationPanel.add(validateFrameNumberBox);
-        validationPanel.add(new JLabel("Ignore Server-Side Cancel:")); validationPanel.add(ignoreServerCancelBox);
-        validationPanel.add(new JLabel("Use Checksum:"));          validationPanel.add(useChecksumBox);
-        validationPanel.add(new JLabel("Use Strict Validation:")); validationPanel.add(strictValidationBox);
-        validationPanel.add(new JLabel("Checksum Algorithm:"));    validationPanel.add(checksumAlgorithmBox, "w 150!");
-        validationPanel.add(new JLabel("Bidirectional:"));          validationPanel.add(bidirectionalBox);
-        validationPanel.add(new JLabel("Positive ACK:"));          validationPanel.add(ackField, "w 80!");
-        validationPanel.add(new JLabel("Negative ACK:"));            validationPanel.add(nakField, "w 80!");
+        add(createValidationSettingsPanel(), gbc);
+        gbc.gridy++;
 
         // --- Connection Settings Panel ---
-        JPanel connPanel = new JPanel(new MigLayout("insets 8, fillx, wrap 2", "[right][left,grow]"));
-        connPanel.setBackground(Color.WHITE);
-        connPanel.setBorder(BorderFactory.createTitledBorder(
-            BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(204, 204, 204)),
-            "Connection Settings", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION,
-            new java.awt.Font("Tahoma", java.awt.Font.BOLD, 11)));
-
-        connPanel.add(new JLabel("Max Transfer Attempts:"));      connPanel.add(maxTransferAttemptsField, "w 80!");
-        connPanel.add(new JLabel("Establishment Timeout (ms):")); connPanel.add(establishmentTimeoutField, "w 100!");
-        connPanel.add(new JLabel("Contention Timeout (ms):"));    connPanel.add(contentionTimeoutField, "w 100!");
-        connPanel.add(new JLabel("Frame Timeout (ms):"));          connPanel.add(frameTimeoutField, "w 100!");
-        connPanel.add(new JLabel("Response Timeout (ms):"));      connPanel.add(responseTimeoutField, "w 100!");
+        add(createConnectionSettingsPanel(), gbc);
+        gbc.gridy++;
 
         // --- Mode Panel ---
-        JPanel modePanel = new JPanel(new MigLayout("insets 8, fillx, wrap 2", "[right][left,grow]"));
-        modePanel.setBackground(Color.WHITE);
-        modePanel.setBorder(BorderFactory.createTitledBorder(
+        add(createModePanel(), gbc);
+    }
+
+    private JPanel createFrameSettingsPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(createTitledBorder("Frame Settings"));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(3, 4, 3, 4);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 0.0;
+        gbc.gridx = 0;
+
+        String[][] fields = {
+            {"Enquiry (ENQ):", "0x05"},
+            {"Start of Frame (STX):", "0x02"},
+            {"Max Content Length:", "240"},
+            {"Intermediate End (ETB):", "0x17"},
+            {"End of Frame (ETX):", "0x03"},
+            {"Checksum Byte Length:", "2"},
+            {"Frame Terminator:", "0x0D0A"},
+            {"End of Transmission (EOT):", "0x04"},
+        };
+
+        JTextField[] fieldRefs = {
+            enquiryField, stxField, maxContentLengthField, etbField,
+            etxField, checksumLengthField, frameTerminatorField, eotField
+        };
+
+        for (int i = 0; i < fields.length; i++) {
+            gbc.gridy = i;
+            gbc.gridx = 0;
+            gbc.weightx = 0.0;
+            gbc.anchor = GridBagConstraints.EAST;
+            panel.add(new JLabel(fields[i][0]), gbc);
+            gbc.gridx = 1;
+            gbc.weightx = 1.0;
+            gbc.anchor = GridBagConstraints.WEST;
+            fieldRefs[i].setText(fields[i][1]);
+            panel.add(fieldRefs[i], gbc);
+        }
+
+        return panel;
+    }
+
+    private JPanel createValidationSettingsPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(createTitledBorder("Validation Settings"));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(3, 4, 3, 4);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        // Row 0: Validate Frame Number
+        addRow(panel, gbc, 0, "Validate Frame Number:", validateFrameNumberBox, true);
+        // Row 1: Ignore Server-Side Cancel
+        addRow(panel, gbc, 1, "Ignore Server-Side Cancel:", ignoreServerCancelBox, false);
+        // Row 2: Use Checksum
+        addRow(panel, gbc, 2, "Use Checksum:", useChecksumBox, true);
+        // Row 3: Use Strict Validation
+        addRow(panel, gbc, 3, "Use Strict Validation:", strictValidationBox, false);
+        // Row 4: Checksum Algorithm
+        addRow(panel, gbc, 4, "Checksum Algorithm:", checksumAlgorithmBox, null);
+        // Row 5: Bidirectional
+        addRow(panel, gbc, 5, "Bidirectional:", bidirectionalBox, true);
+        // Row 6: Positive ACK
+        addTextRow(panel, gbc, 6, "Positive ACK:", ackField, "0x06");
+        // Row 7: Negative ACK
+        addTextRow(panel, gbc, 7, "Negative ACK:", nakField, "0x15");
+
+        return panel;
+    }
+
+    private JPanel createConnectionSettingsPanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(createTitledBorder("Connection Settings"));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(3, 4, 3, 4);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        addTextRow(panel, gbc, 0, "Max Transfer Attempts:", maxTransferAttemptsField, "6");
+        addTextRow(panel, gbc, 1, "Establishment Timeout (ms):", establishmentTimeoutField, "15000");
+        addTextRow(panel, gbc, 2, "Contention Timeout (ms):", contentionTimeoutField, "20000");
+        addTextRow(panel, gbc, 3, "Frame Timeout (ms):", frameTimeoutField, "30000");
+        addTextRow(panel, gbc, 4, "Response Timeout (ms):", responseTimeoutField, "15000");
+
+        return panel;
+    }
+
+    private JPanel createModePanel() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(Color.WHITE);
+        panel.setBorder(createTitledBorder("Mode"));
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(3, 4, 3, 4);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 0.0;
+        gbc.anchor = GridBagConstraints.EAST;
+        panel.add(new JLabel("Server Mode:"), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        gbc.anchor = GridBagConstraints.WEST;
+        serverModeBox.setSelected(true);
+        panel.add(serverModeBox, gbc);
+
+        return panel;
+    }
+
+    // ------------------------------------------------------------------
+    // Layout helpers
+    // ------------------------------------------------------------------
+
+    private TitledBorder createTitledBorder(String title) {
+        return BorderFactory.createTitledBorder(
             BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(204, 204, 204)),
-            "Mode", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION,
-            new java.awt.Font("Tahoma", java.awt.Font.BOLD, 11)));
-
-        modePanel.add(new JLabel("Server Mode:")); modePanel.add(serverModeBox);
-
-        add(framePanel, "growx, span 2");
-        add(validationPanel, "growx, span 2");
-        add(connPanel, "growx, span 2");
-        add(modePanel, "growx, span 2");
+            title,
+            TitledBorder.DEFAULT_JUSTIFICATION,
+            TitledBorder.DEFAULT_POSITION,
+            new java.awt.Font("Tahoma", java.awt.Font.BOLD, 11));
     }
 
-    @Override
-    public void doRefresh() {
-        Preferences p = Preferences.userNodeForPackage(this.getClass());
-        enquiryField.setText(p.get(PREFIX + "enquiry", "0x05"));
-        stxField.setText(p.get(PREFIX + "stx", "0x02"));
-        maxContentLengthField.setText(p.get(PREFIX + "maxContentLength", "240"));
-        etbField.setText(p.get(PREFIX + "etb", "0x17"));
-        etxField.setText(p.get(PREFIX + "etx", "0x03"));
-        checksumLengthField.setText(p.get(PREFIX + "checksumLength", "2"));
-        frameTerminatorField.setText(p.get(PREFIX + "frameTerminator", "0x000A"));
-        eotField.setText(p.get(PREFIX + "eot", "0x04"));
-
-        validateFrameNumberBox.setSelected(p.getBoolean(PREFIX + "validateFrameNumber", true));
-        ignoreServerCancelBox.setSelected(p.getBoolean(PREFIX + "ignoreServerCancel", false));
-        useChecksumBox.setSelected(p.getBoolean(PREFIX + "useChecksum", true));
-        strictValidationBox.setSelected(p.getBoolean(PREFIX + "strictValidation", false));
-        checksumAlgorithmBox.setSelectedItem(p.get(PREFIX + "checksumAlgorithm", "Add Mod 256"));
-        bidirectionalBox.setSelected(p.getBoolean(PREFIX + "bidirectional", true));
-        ackField.setText(p.get(PREFIX + "ack", "0x06"));
-        nakField.setText(p.get(PREFIX + "nak", "0x15"));
-
-        maxTransferAttemptsField.setText(p.get(PREFIX + "maxTransferAttempts", "6"));
-        establishmentTimeoutField.setText(p.get(PREFIX + "establishmentTimeout", "15000"));
-        contentionTimeoutField.setText(p.get(PREFIX + "contentionTimeout", "20000"));
-        frameTimeoutField.setText(p.get(PREFIX + "frameTimeout", "30000"));
-        responseTimeoutField.setText(p.get(PREFIX + "responseTimeout", "15000"));
-
-        serverModeBox.setSelected(p.getBoolean(PREFIX + "serverMode", true));
+    private void addRow(JPanel panel, GridBagConstraints gbc, int row,
+                        String label, JCheckBox checkbox, Boolean selected) {
+        gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.weightx = 0.0;
+        gbc.anchor = GridBagConstraints.EAST;
+        panel.add(new JLabel(label), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        gbc.anchor = GridBagConstraints.WEST;
+        if (selected != null) {
+            checkbox.setSelected(selected);
+        }
+        panel.add(checkbox, gbc);
     }
 
-    @Override
-    public boolean doSave() {
-        // Validation
-        if (!isValidHex(enquiryField.getText())) { showError("Enquiry must be hex (e.g. 0x05)"); return false; }
-        if (!isValidHex(stxField.getText()))     { showError("STX must be hex"); return false; }
-        if (!isPositiveInt(maxContentLengthField.getText())) { showError("Max content length must be positive integer"); return false; }
-        if (!isValidHex(etbField.getText()))     { showError("ETB must be hex"); return false; }
-        if (!isValidHex(etxField.getText()))     { showError("ETX must be hex"); return false; }
-        if (!isPositiveInt(checksumLengthField.getText())) { showError("Checksum length must be 1 or 2"); return false; }
-        if (!isValidHex(frameTerminatorField.getText())) { showError("Frame terminator must be hex"); return false; }
-        if (!isValidHex(eotField.getText()))     { showError("EOT must be hex"); return false; }
-        if (!isValidHex(ackField.getText()))      { showError("ACK must be hex"); return false; }
-        if (!isValidHex(nakField.getText()))      { showError("NAK must be hex"); return false; }
-        if (!isPositiveInt(maxTransferAttemptsField.getText())) { showError("Max transfer attempts must be positive integer"); return false; }
-        if (!isPositiveInt(establishmentTimeoutField.getText())) { showError("Timeouts must be positive integers"); return false; }
-
-        Preferences p = Preferences.userNodeForPackage(this.getClass());
-        p.put(PREFIX + "enquiry", enquiryField.getText().trim());
-        p.put(PREFIX + "stx", stxField.getText().trim());
-        p.put(PREFIX + "maxContentLength", maxContentLengthField.getText().trim());
-        p.put(PREFIX + "etb", etbField.getText().trim());
-        p.put(PREFIX + "etx", etxField.getText().trim());
-        p.put(PREFIX + "checksumLength", checksumLengthField.getText().trim());
-        p.put(PREFIX + "frameTerminator", frameTerminatorField.getText().trim());
-        p.put(PREFIX + "eot", eotField.getText().trim());
-
-        p.putBoolean(PREFIX + "validateFrameNumber", validateFrameNumberBox.isSelected());
-        p.putBoolean(PREFIX + "ignoreServerCancel", ignoreServerCancelBox.isSelected());
-        p.putBoolean(PREFIX + "useChecksum", useChecksumBox.isSelected());
-        p.putBoolean(PREFIX + "strictValidation", strictValidationBox.isSelected());
-        p.put(PREFIX + "checksumAlgorithm", (String) checksumAlgorithmBox.getSelectedItem());
-        p.putBoolean(PREFIX + "bidirectional", bidirectionalBox.isSelected());
-        p.put(PREFIX + "ack", ackField.getText().trim());
-        p.put(PREFIX + "nak", nakField.getText().trim());
-
-        p.put(PREFIX + "maxTransferAttempts", maxTransferAttemptsField.getText().trim());
-        p.put(PREFIX + "establishmentTimeout", establishmentTimeoutField.getText().trim());
-        p.put(PREFIX + "contentionTimeout", contentionTimeoutField.getText().trim());
-        p.put(PREFIX + "frameTimeout", frameTimeoutField.getText().trim());
-        p.put(PREFIX + "responseTimeout", responseTimeoutField.getText().trim());
-
-        p.putBoolean(PREFIX + "serverMode", serverModeBox.isSelected());
-
-        return true;
+    private void addRow(JPanel panel, GridBagConstraints gbc, int row,
+                        String label, JComboBox<?> combo, Object ignored) {
+        gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.weightx = 0.0;
+        gbc.anchor = GridBagConstraints.EAST;
+        panel.add(new JLabel(label), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        gbc.anchor = GridBagConstraints.WEST;
+        panel.add(combo, gbc);
     }
 
-    private boolean isValidHex(String s) {
-        if (s == null || s.trim().isEmpty()) return false;
-        s = s.trim().toLowerCase();
-        return s.startsWith("0x") && s.length() > 2 && s.substring(2).matches("[0-9a-f]+") ||
-               s.matches("[0-9a-f]+");
+    private void addTextRow(JPanel panel, GridBagConstraints gbc, int row,
+                             String label, JTextField field, String defaultValue) {
+        gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.weightx = 0.0;
+        gbc.anchor = GridBagConstraints.EAST;
+        panel.add(new JLabel(label), gbc);
+        gbc.gridx = 1;
+        gbc.weightx = 1.0;
+        gbc.anchor = GridBagConstraints.WEST;
+        field.setText(defaultValue);
+        panel.add(field, gbc);
     }
 
-    private boolean isPositiveInt(String s) {
-        try { return Integer.parseInt(s.trim()) > 0; } catch (Exception e) { return false; }
-    }
+    // ------------------------------------------------------------------
+    // Default values
+    // ------------------------------------------------------------------
 
-    private void showError(String msg) {
-        javax.swing.JOptionPane.showMessageDialog(this, msg, "Validation Error", javax.swing.JOptionPane.ERROR_MESSAGE);
+    private void loadDefaults() {
+        // All defaults are set during initLayout() via the addTextRow()
+        // and addRow() helpers. This method is a placeholder for any
+        // future preference-loading logic.
     }
 }

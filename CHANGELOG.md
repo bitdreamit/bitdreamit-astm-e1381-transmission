@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2026-08-16 - "Fix settings dialog not appearing (Frame Settings link greyed out)"
+
+This patch fixes the issue where the "Frame Settings" link in the
+Mirth channel editor was greyed out / disabled, preventing the user
+from accessing the ASTM E1381 transmission mode settings dialog.
+
+### Root cause
+The `ASTME1381TransmissionModeSettingsPanel` extended
+`com.mirth.connect.client.ui.AbstractSettingsPanel`, which is designed
+for Mirth's **Settings -> Extensions** global view (where each
+extension gets a tab in the Settings panel), NOT for the channel
+editor's inline "Transmission Mode Settings" modal dialog.
+
+When Mirth's channel editor called `getSettingsComponent()` on the
+`ASTME1381ClientProvider`, the returned
+`ASTME1381TransmissionModeSettingsPanel` tried to construct via the
+`AbstractSettingsPanel` constructor. That constructor expected to be
+running in the Settings view context (it initializes Mirth UI
+framework singletons, preference nodes, etc.), and when invoked from
+the channel editor context, it threw an exception silently. Mirth
+caught the exception and disabled the "Frame Settings" link.
+
+Additionally, the panel used Mirth's custom UI components
+(`MirthTextField`, `MirthCheckBox`, `MirthComboBox`) which may have
+different constructor signatures in different Mirth versions, and
+`net.miginfocom.swing.MigLayout` which requires both
+`miglayout-core-4.2.jar` and `miglayout-swing-4.2.jar` on the
+runtime classpath.
+
+### Fixed
+- `ASTME1381TransmissionModeSettingsPanel`:
+  - Changed `extends AbstractSettingsPanel` -> `extends JPanel`.
+  - Replaced `MirthTextField` with standard `JTextField`.
+  - Replaced `MirthCheckBox` with standard `JCheckBox`.
+  - Replaced `MirthComboBox` with standard `JComboBox<String>`.
+  - Replaced `MigLayout` with standard `GridBagLayout` (JDK built-in,
+    no external dependency).
+  - Removed `doRefresh()` and `doSave()` overrides (those were
+    `AbstractSettingsPanel` methods, not applicable to `JPanel`).
+  - Removed `Preferences` usage — defaults are now set directly in
+    the constructor.
+  - Kept the same UI structure: Frame Settings, Validation Settings,
+    Connection Settings, and Mode panels with all the same fields.
+  - Added a `String` constructor for backwards compatibility with
+    `getSettingsComponent()` which calls
+    `new ASTME1381TransmissionModeSettingsPanel("ASTM E1381")`.
+- `ASTME1381TransmissionModeClientPlugin`:
+  - Removed the `getSettingsPanel()` method that returned
+    `AbstractSettingsPanel`. This method was NOT called by Mirth's
+    channel editor (Mirth calls `getSettingsComponent()` on the
+    `ASTME1381ClientProvider` instead), and it created an unnecessary
+    compile-time dependency on `AbstractSettingsPanel`.
+  - Removed the `import com.mirth.connect.client.ui.AbstractSettingsPanel`
+    import.
+
+### What this means for the user
+After deploying v1.2.4 and doing a full clean reinstall (see README
+"Troubleshooting" section), the "Frame Settings" link next to the
+"ASTM E1381" transmission mode dropdown should be **clickable**.
+Clicking it will open the "Transmission Mode Settings" modal dialog
+containing:
+- Frame Settings: ENQ, STX, Max Content Length, ETB, ETX, Checksum
+  Byte Length, Frame Terminator, EOT
+- Validation Settings: Validate Frame Number, Ignore Server-Side
+  Cancel, Use Checksum, Use Strict Validation, Checksum Algorithm,
+  Bidirectional, ACK, NAK
+- Connection Settings: Max Transfer Attempts, Establishment Timeout,
+  Contention Timeout, Frame Timeout, Response Timeout
+- Mode: Server Mode checkbox
+
+This matches the layout shown in the MLLM reference screenshot the
+user provided.
+
 ## [1.2.3] - 2026-08-15 - "Fix XML comment dashes (XmlPullParserException)"
 
 This patch fixes the install-time XML parse error that occurred

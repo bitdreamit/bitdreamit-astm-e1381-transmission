@@ -1,7 +1,6 @@
 package com.bitdreamit.connect.plugins.transmission.astm.client;
 
 import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381Constants;
-import com.mirth.connect.client.ui.AbstractSettingsPanel;
 import com.mirth.connect.plugins.TransmissionModeClientProvider;
 import com.mirth.connect.plugins.TransmissionModePlugin;
 
@@ -22,24 +21,13 @@ import com.mirth.connect.plugins.TransmissionModePlugin;
  * error. The fix is to import and extend {@code TransmissionModePlugin}
  * instead - despite the confusing name, that is the client-side class.</p>
  *
- * <p>Methods inherited from {@code TransmissionModePlugin} (real overrides):
- * <ul>
- *   <li>{@code createProvider()} - abstract, must override (returns our
- *       {@link ASTME1381ClientProvider})</li>
- *   <li>{@code start()} - default empty impl, may override</li>
- *   <li>{@code stop()} - default empty impl, may override</li>
- *   <li>{@code reset()} - default empty impl, may override</li>
- * </ul></p>
- *
- * <p>Methods below that are NOT declared on {@code TransmissionModePlugin}
- * directly (and therefore not annotated with {@code @Override}):
- * <ul>
- *   <li>{@code getSettingsPanel()} - declared on {@code ClientPlugin}
- *       in some Mirth versions; kept as a plain method so the build
- *       does not break if the parent class layout changes.</li>
- *   <li>{@code getPluginPointName()} - declared on {@code Plugin}
- *       in some Mirth versions; same treatment.</li>
- * </ul></p>
+ * <p><b>Settings panel note (v1.2.4):</b> the previous version had a
+ * {@code getSettingsPanel()} method that returned an
+ * {@code AbstractSettingsPanel}. This method was NOT called by Mirth's
+ * channel editor (Mirth calls {@code getSettingsComponent()} on the
+ * {@link ASTME1381ClientProvider} instead), and it created an unnecessary
+ * dependency on {@code AbstractSettingsPanel} which caused the settings
+ * panel construction to fail silently. The method has been removed.</p>
  */
 public class ASTME1381TransmissionModeClientPlugin extends TransmissionModePlugin {
 
@@ -51,8 +39,8 @@ public class ASTME1381TransmissionModeClientPlugin extends TransmissionModePlugi
      * Factory method required by {@code TransmissionModePlugin}.
      *
      * <p>Returns a new {@link ASTME1381ClientProvider} instance. The
-     * returned provider implements the actual send-side ASTM E1381
-     * flow (ENQ -> ACK -> frames -> EOT).</p>
+     * returned provider implements the channel editor UI hooks
+     * (sample messages, property validation, settings component).</p>
      */
     @Override
     public TransmissionModeClientProvider createProvider() {
@@ -60,23 +48,12 @@ public class ASTME1381TransmissionModeClientPlugin extends TransmissionModePlugi
     }
 
     /**
-     * Returns the settings panel that the Mirth channel editor will
-     * display when the user picks "ASTM E1381" as the transmission mode.
-     *
-     * <p>Not annotated {@code @Override} - the declaring class
-     * ({@code ClientPlugin}) is not guaranteed to expose this method in
-     * every Mirth 4.x point release.</p>
-     */
-    public AbstractSettingsPanel getSettingsPanel() {
-        return new ASTME1381TransmissionModeSettingsPanel("ASTM E1381");
-    }
-
-    /**
      * Returns the human-readable name of this transmission mode, shown
      * in the Mirth channel editor's transmission mode dropdown.
      *
-     * <p>Not annotated {@code @Override} - same reason as
-     * {@link #getSettingsPanel()}.</p>
+     * <p>Not annotated {@code @Override} - the declaring class
+     * ({@code ClientPlugin} / {@code Plugin}) is not guaranteed to
+     * expose this method in every Mirth 4.x point release.</p>
      */
     public String getPluginPointName() {
         return ASTME1381Constants.PLUGIN_NAME;
