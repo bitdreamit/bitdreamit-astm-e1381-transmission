@@ -196,11 +196,13 @@ build() {
     jar cf "$OUT_DIR/bitdreamit-astm-e1381-transmission-client.jar" \
         -C "$OUT_DIR/client-jar" .
 
-    # 8. Copy the two production XML files to the output directory
-    #    so the out/ folder is a drop-in Mirth extension folder.
-    echo "[build] copying production XML files..."
-    cp "$PROJECT_DIR/plugin.xml"             "$OUT_DIR/plugin.xml"
-    cp "$PROJECT_DIR/transmissionmode.xml"   "$OUT_DIR/transmissionmode.xml"
+    # 8. Copy the production XML file to the output directory.
+    #    Note: Mirth 4.5.2 does NOT use transmissionmode.xml (the MLLP
+    #    plugin has only plugin.xml + 3 JARs). Mirth auto-discovers
+    #    transmission modes from the TransmissionModeProvider /
+    #    TransmissionModePlugin base classes. So we only copy plugin.xml.
+    echo "[build] copying production XML file..."
+    cp "$PROJECT_DIR/plugin.xml" "$OUT_DIR/plugin.xml"
 
     echo ""
     echo "[build] complete. Artifacts:"

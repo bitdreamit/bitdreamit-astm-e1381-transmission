@@ -3,39 +3,42 @@ package com.bitdreamit.connect.plugins.transmission.astm.client;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Frame;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
-import javax.swing.JComponent;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTextField;
-import javax.swing.border.CompoundBorder;
-import javax.swing.border.EmptyBorder;
-import javax.swing.border.LineBorder;
 import javax.swing.border.TitledBorder;
 
 /**
- * ASTM E1381-02 Transmission Mode Settings Panel.
+ * ASTM E1381 Settings Dialog (modal).
  *
- * <p>Displayed inside Mirth's "Transmission Mode Settings" modal dialog
- * when the user clicks the settings link next to the "ASTM E1381"
- * transmission mode dropdown in the channel editor.</p>
+ * <p>Mirrors Mirth's MLLPModeSettingsDialog: a modal dialog with
+ * settings on the left, byte abbreviations reference on the right,
+ * and OK / Cancel buttons at the bottom.</p>
  *
- * <p>Layout matches the MLLM (MLLP) reference style:
- * a left panel with grouped settings fields and a right panel with
- * byte abbreviation reference.</p>
+ * <p>Opened when the user clicks the "Frame Settings" button in
+ * {@link ASTME1381SettingsPanel}.</p>
  */
-public class ASTME1381TransmissionModeSettingsPanel extends JPanel {
+public class ASTME1381SettingsDialog extends JDialog {
 
-    private static final long serialVersionUID = 1L;
+    private boolean okPressed = false;
 
     // --- Frame Settings fields ---
     private JTextField enquiryField;
@@ -67,19 +70,17 @@ public class ASTME1381TransmissionModeSettingsPanel extends JPanel {
     // --- Mode field ---
     private JCheckBox serverModeBox;
 
-    public ASTME1381TransmissionModeSettingsPanel() {
+    // --- Buttons ---
+    private JButton okButton;
+    private JButton cancelButton;
+
+    public ASTME1381SettingsDialog(Frame parent) {
+        super(parent, "Transmission Mode Settings", true);
         initComponents();
         initLayout();
-        loadDefaults();
+        pack();
+        setLocationRelativeTo(parent);
     }
-
-    public ASTME1381TransmissionModeSettingsPanel(String tabName) {
-        this();
-    }
-
-    // ------------------------------------------------------------------
-    // Component initialization
-    // ------------------------------------------------------------------
 
     private void initComponents() {
         enquiryField              = new JTextField(8);
@@ -108,36 +109,91 @@ public class ASTME1381TransmissionModeSettingsPanel extends JPanel {
         responseTimeoutField      = new JTextField(8);
 
         serverModeBox             = new JCheckBox();
-    }
 
-    // ------------------------------------------------------------------
-    // Layout - matches MLLM style with two-column layout
-    // ------------------------------------------------------------------
+        okButton     = new JButton("OK");
+        cancelButton = new JButton("Cancel");
+
+        // Set default values
+        enquiryField.setText("05");
+        stxField.setText("02");
+        maxContentLengthField.setText("240");
+        etbField.setText("17");
+        etxField.setText("03");
+        checksumLengthField.setText("2");
+        frameTerminatorField.setText("0D0A");
+        eotField.setText("04");
+
+        validateFrameNumberBox.setSelected(true);
+        ignoreServerCancelBox.setSelected(false);
+        useChecksumBox.setSelected(true);
+        strictValidationBox.setSelected(false);
+        bidirectionalBox.setSelected(true);
+        ackField.setText("06");
+        nakField.setText("15");
+
+        maxTransferAttemptsField.setText("6");
+        establishmentTimeoutField.setText("15000");
+        contentionTimeoutField.setText("20000");
+        frameTimeoutField.setText("30000");
+        responseTimeoutField.setText("15000");
+
+        serverModeBox.setSelected(true);
+
+        // Button handlers
+        okButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                okPressed = true;
+                setVisible(false);
+                dispose();
+            }
+        });
+
+        cancelButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                okPressed = false;
+                setVisible(false);
+                dispose();
+            }
+        });
+    }
 
     private void initLayout() {
         setLayout(new BorderLayout(8, 8));
-        setBorder(new EmptyBorder(10, 10, 10, 10));
         setBackground(Color.WHITE);
 
         // --- Left panel: all settings ---
         JPanel leftPanel = new JPanel();
         leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
         leftPanel.setBackground(Color.WHITE);
+        leftPanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
 
         leftPanel.add(createFrameSettingsPanel());
-        leftPanel.add(Box.createVerticalStrut(8));
+        leftPanel.add(Box.createVerticalStrut(6));
         leftPanel.add(createValidationSettingsPanel());
-        leftPanel.add(Box.createVerticalStrut(8));
+        leftPanel.add(Box.createVerticalStrut(6));
         leftPanel.add(createConnectionSettingsPanel());
-        leftPanel.add(Box.createVerticalStrut(8));
+        leftPanel.add(Box.createVerticalStrut(6));
         leftPanel.add(createModePanel());
 
-        // --- Right panel: byte abbreviations reference ---
+        // --- Right panel: byte abbreviations ---
         JPanel rightPanel = createByteReferencePanel();
 
-        // --- Main layout ---
-        add(leftPanel, BorderLayout.CENTER);
-        add(rightPanel, BorderLayout.EAST);
+        // --- Center: left + right ---
+        JPanel centerPanel = new JPanel(new BorderLayout(8, 0));
+        centerPanel.setBackground(Color.WHITE);
+        centerPanel.add(leftPanel, BorderLayout.CENTER);
+        centerPanel.add(rightPanel, BorderLayout.EAST);
+
+        // --- Bottom: OK / Cancel buttons ---
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.setBackground(Color.WHITE);
+        buttonPanel.add(okButton);
+        buttonPanel.add(cancelButton);
+
+        add(centerPanel, BorderLayout.CENTER);
+        add(buttonPanel, BorderLayout.SOUTH);
     }
 
     private JPanel createFrameSettingsPanel() {
@@ -216,7 +272,6 @@ public class ASTME1381TransmissionModeSettingsPanel extends JPanel {
         gbc.gridx = 1;
         gbc.weightx = 1.0;
         gbc.anchor = GridBagConstraints.WEST;
-        serverModeBox.setSelected(true);
         panel.add(serverModeBox, gbc);
 
         return panel;
@@ -236,79 +291,62 @@ public class ASTME1381TransmissionModeSettingsPanel extends JPanel {
             "<SUB> 0x1A"
         };
 
-        JPanel listPanel = new JPanel();
-        listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
-        listPanel.setBackground(Color.WHITE);
-        listPanel.setBorder(new EmptyBorder(4, 8, 4, 8));
+        JList<String> list = new JList<>(abbrevs);
+        list.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        list.setBackground(Color.WHITE);
 
-        for (String abbrev : abbrevs) {
-            JLabel label = new JLabel(abbrev);
-            label.setFont(new Font("Monospaced", Font.PLAIN, 11));
-            label.setAlignmentX(LEFT_ALIGNMENT);
-            listPanel.add(label);
-        }
+        JScrollPane scrollPane = new JScrollPane(list);
+        scrollPane.setPreferredSize(new Dimension(120, 200));
 
-        panel.add(listPanel, BorderLayout.NORTH);
+        panel.add(scrollPane, BorderLayout.NORTH);
         return panel;
     }
 
-    // ------------------------------------------------------------------
-    // Layout helpers
-    // ------------------------------------------------------------------
+    // --- Layout helpers ---
 
     private TitledBorder createTitledBorder(String title) {
-        TitledBorder tb = BorderFactory.createTitledBorder(
+        return BorderFactory.createTitledBorder(
             BorderFactory.createLineBorder(new Color(153, 153, 153), 1),
             title,
             TitledBorder.DEFAULT_JUSTIFICATION,
             TitledBorder.DEFAULT_POSITION,
             new Font("Tahoma", Font.BOLD, 11));
-        return tb;
     }
 
     private void addHexRow(JPanel panel, GridBagConstraints gbc, int row,
                            String label, JTextField field, String hexValue, String abbrev) {
         gbc.gridy = row;
-        // Label
         gbc.gridx = 0;
         gbc.weightx = 0.0;
         gbc.anchor = GridBagConstraints.EAST;
         panel.add(new JLabel(label), gbc);
-        // 0x prefix
         gbc.gridx = 1;
         gbc.weightx = 0.0;
         gbc.anchor = GridBagConstraints.EAST;
         panel.add(new JLabel("0x"), gbc);
-        // Hex field
         gbc.gridx = 2;
         gbc.weightx = 1.0;
         gbc.anchor = GridBagConstraints.WEST;
-        field.setText(hexValue);
         panel.add(field, gbc);
-        // Abbreviation label
         gbc.gridx = 3;
         gbc.weightx = 0.0;
         gbc.anchor = GridBagConstraints.WEST;
         JLabel abbrevLabel = new JLabel(abbrev);
         abbrevLabel.setForeground(new Color(100, 100, 100));
-        abbrevLabel.setFont(new Font("Tahoma", Font.PLAIN, 11));
         panel.add(abbrevLabel, gbc);
     }
 
     private void addTextRow(JPanel panel, GridBagConstraints gbc, int row,
                              String label, JTextField field, String value) {
         gbc.gridy = row;
-        // Label
         gbc.gridx = 0;
         gbc.weightx = 0.0;
         gbc.anchor = GridBagConstraints.EAST;
         panel.add(new JLabel(label), gbc);
-        // Field
         gbc.gridx = 1;
         gbc.gridwidth = 2;
         gbc.weightx = 1.0;
         gbc.anchor = GridBagConstraints.WEST;
-        field.setText(value);
         panel.add(field, gbc);
         gbc.gridwidth = 1;
     }
@@ -316,12 +354,10 @@ public class ASTME1381TransmissionModeSettingsPanel extends JPanel {
     private void addCheckRow(JPanel panel, GridBagConstraints gbc, int row,
                               String label, JCheckBox checkbox, boolean selected) {
         gbc.gridy = row;
-        // Label
         gbc.gridx = 0;
         gbc.weightx = 0.0;
         gbc.anchor = GridBagConstraints.EAST;
         panel.add(new JLabel(label), gbc);
-        // Checkbox
         gbc.gridx = 1;
         gbc.gridwidth = 2;
         gbc.weightx = 1.0;
@@ -334,12 +370,10 @@ public class ASTME1381TransmissionModeSettingsPanel extends JPanel {
     private void addComboRow(JPanel panel, GridBagConstraints gbc, int row,
                               String label, JComboBox<?> combo) {
         gbc.gridy = row;
-        // Label
         gbc.gridx = 0;
         gbc.weightx = 0.0;
         gbc.anchor = GridBagConstraints.EAST;
         panel.add(new JLabel(label), gbc);
-        // Combo
         gbc.gridx = 1;
         gbc.gridwidth = 2;
         gbc.weightx = 1.0;
@@ -348,13 +382,34 @@ public class ASTME1381TransmissionModeSettingsPanel extends JPanel {
         gbc.gridwidth = 1;
     }
 
-    // ------------------------------------------------------------------
-    // Default values
-    // ------------------------------------------------------------------
+    // --- Public API ---
 
-    private void loadDefaults() {
-        // Defaults are set during initLayout() via the addHexRow() and
-        // addTextRow() helpers. This method is a placeholder for any
-        // future preference-loading logic.
+    public boolean isOkPressed() {
+        return okPressed;
     }
+
+    // --- Field getters (for the provider to read after OK) ---
+
+    public String getEnquiryByte() { return enquiryField.getText(); }
+    public String getStartOfFrameByte() { return stxField.getText(); }
+    public String getMaxFrameContentLength() { return maxContentLengthField.getText(); }
+    public String getIntermediateEndOfFrame() { return etbField.getText(); }
+    public String getEndOfFrameByte() { return etxField.getText(); }
+    public String getChecksumByteLength() { return checksumLengthField.getText(); }
+    public String getFrameTerminator() { return frameTerminatorField.getText(); }
+    public String getEndOfTransmissionByte() { return eotField.getText(); }
+    public boolean isValidateFrameNumber() { return validateFrameNumberBox.isSelected(); }
+    public boolean isIgnoreServerSideCancel() { return ignoreServerCancelBox.isSelected(); }
+    public boolean isUseChecksum() { return useChecksumBox.isSelected(); }
+    public boolean isUseStrictValidation() { return strictValidationBox.isSelected(); }
+    public String getChecksumAlgorithm() { return (String) checksumAlgorithmBox.getSelectedItem(); }
+    public boolean isBidirectional() { return bidirectionalBox.isSelected(); }
+    public String getPositiveAckByte() { return ackField.getText(); }
+    public String getNegativeAckByte() { return nakField.getText(); }
+    public String getMaxTransferAttempts() { return maxTransferAttemptsField.getText(); }
+    public String getEstablishmentTimeout() { return establishmentTimeoutField.getText(); }
+    public String getContentionTimeout() { return contentionTimeoutField.getText(); }
+    public String getFrameTimeout() { return frameTimeoutField.getText(); }
+    public String getResponseTimeout() { return responseTimeoutField.getText(); }
+    public boolean isServerMode() { return serverModeBox.isSelected(); }
 }
