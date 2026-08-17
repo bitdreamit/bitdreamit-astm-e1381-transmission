@@ -1,10 +1,70 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Mirth Connect 4.5.2 extension descriptor for the
+  bitdreamit-astm-e1381-transmission plugin.
 
+  FORMAT NOTE (Mirth Connect 4.5.2):
+  ==================================
+  This file uses the same plugin.xml format that Mirth Connect 4.5.2
+  ships for its built-in plugins (e.g. datatype-hl7v3). The structure
+  is:
+
+    <pluginMetaData path="extension-folder-name">
+        <name>...</name>
+        <author>...</author>
+        <pluginVersion>...</pluginVersion>
+        <mirthVersion>4.5.2</mirthVersion>
+        <url>...</url>
+        <description>...</description>
+
+        <serverClasses>
+            <string>com.example.ServerPlugin</string>     List of String
+            <string>com.example.AnotherServerPlugin</string>
+        </serverClasses>
+
+        <clientClasses>
+            <string>com.example.ClientPlugin</string>     List of String
+        </clientClasses>
+
+        <library type="CLIENT" path="client.jar" />       top-level, shared
+        <library type="SHARED" path="shared.jar" />       by all classes
+        <library type="SERVER" path="server.jar" />       in this extension
+    </pluginMetaData>
+
+  Key points (this is what was wrong in v1.0.0 to v1.1.8):
+
+  1. serverClasses and clientClasses contain string elements
+     DIRECTLY, one string per class name. There is NO
+     serverClass or clientClass wrapper element. The wrapper
+     approach was an older Mirth 3.x convention that XStream 1.4.x
+     in Mirth 4.5.2 rejects with
+     "CannotResolveClassException: serverClass".
+
+  2. library elements are declared at the TOP LEVEL of
+     pluginMetaData, NOT nested inside class wrappers. Each
+     library declares one JAR with its type (CLIENT / SHARED /
+     SERVER) and path. Mirth's classloader uses these to assemble
+     the runtime classpath for both server-side and client-side
+     classes.
+
+  3. There is NO name="..." attribute anywhere; class names are
+     the text content of string elements.
+
+  See CHANGELOG.md v1.1.9 for the full root-cause analysis.
+
+  IMPORTANT (XML comment safety):
+  XML comments must not contain double dash sequences other than
+  the comment closing marker. Decorative lines of dashes cause
+  XmlPullParserException: "in comment after two dashes, next
+  character must be the closing angle bracket, not a dash".
+  This file uses "===" decorative lines instead of dashed ones
+  to avoid that error.
+-->
 <pluginMetaData path="bitdreamit-astm-e1381-transmission">
 
     <name>ASTM E1381 Transmission Mode (bitdreamit)</name>
     <author>Bit Dream IT</author>
-    <pluginVersion>1.2.7</pluginVersion>
+    <pluginVersion>1.2.8</pluginVersion>
     <mirthVersion>4.5.2</mirthVersion>
     <url>https://bitdreamit.com</url>
     <description>ASTM E1381-02 lower-layer transmission framing protocol.
