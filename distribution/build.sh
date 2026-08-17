@@ -196,13 +196,17 @@ build() {
     jar cf "$OUT_DIR/bitdreamit-astm-e1381-transmission-client.jar" \
         -C "$OUT_DIR/client-jar" .
 
-    # 8. Copy the production XML file to the output directory.
-    #    Note: Mirth 4.5.2 does NOT use transmissionmode.xml (the MLLP
-    #    plugin has only plugin.xml + 3 JARs). Mirth auto-discovers
-    #    transmission modes from the TransmissionModeProvider /
-    #    TransmissionModePlugin base classes. So we only copy plugin.xml.
-    echo "[build] copying production XML file..."
-    cp "$PROJECT_DIR/plugin.xml" "$OUT_DIR/plugin.xml"
+    # 8. Copy the production XML files to the output directory.
+    #    Both plugin.xml AND transmissionmode.xml are needed:
+    #      - plugin.xml: tells Mirth which plugin classes to load
+    #      - transmissionmode.xml: tells Mirth's TransmissionModeController
+    #        the server/client/shared class names. The <sharedClassName>
+    #        element is used to register the Properties class with XStream's
+    #        security framework. Without it, XStream rejects the Properties
+    #        class at channel-deserialization time with ForbiddenClassException.
+    echo "[build] copying production XML files..."
+    cp "$PROJECT_DIR/plugin.xml"             "$OUT_DIR/plugin.xml"
+    cp "$PROJECT_DIR/transmissionmode.xml"   "$OUT_DIR/transmissionmode.xml"
 
     echo ""
     echo "[build] complete. Artifacts:"
