@@ -12,33 +12,40 @@ import com.mirth.connect.model.transmission.TransmissionModeProperties;
 import com.mirth.connect.plugins.TransmissionModeProvider;
 
 /**
- * ASTM E1381-02 Transmission Mode Server Plugin.
+ * Server-side transmission-mode plugin for ASTM E1381-02.
  */
 public class ASTME1381TransmissionModePlugin extends TransmissionModeProvider {
 
     /**
-     * Force-register the Properties class with the SERVER-side XStream.
+     * Register our Properties class with XStream via pure reflection.
+     * Same pattern as the client plugin - see comment there.
      */
     @Override
     public void start() {
         super.start();
+        registerWithXStream();
+    }
+
+    private void registerWithXStream() {
         try {
             Class<?> propsClass = Class.forName(
                 "com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties");
 
             ObjectXMLSerializer serializer = ObjectXMLSerializer.getInstance();
 
-            // Scan all fields of the serializer class hierarchy for an XStream instance
-            Class<?> clazz = serializer.getClass();
+            Class<?> xStreamClass = Class.forName("com.thoughtworks.xstream.XStream");
+            java.lang.reflect.Method allowMethod = xStreamClass.getMethod(
+                "allowTypes", Class[].class);
+
+            Class<?> clazz = ObjectXMLSerializer.class;
             while (clazz != null) {
                 for (java.lang.reflect.Field field : clazz.getDeclaredFields()) {
                     try {
                         field.setAccessible(true);
-                        Object obj = field.get(serializer);
-                        if (obj instanceof com.thoughtworks.xstream.XStream) {
-                            com.thoughtworks.xstream.XStream xStream =
-                                (com.thoughtworks.xstream.XStream) obj;
-                            xStream.allowTypes(new Class[] { propsClass });
+                        Object fieldValue = field.get(serializer);
+                        if (fieldValue != null && xStreamClass.isInstance(fieldValue)) {
+                            allowMethod.invoke(fieldValue,
+                                (Object) new Class[] { propsClass });
                         }
                     } catch (Exception ignored) {
                     }
@@ -52,11 +59,6 @@ public class ASTME1381TransmissionModePlugin extends TransmissionModeProvider {
 
     public String getPluginPointName() {
         return ASTME1381Constants.PLUGIN_NAME;
-    }
-
-    public String getPluginPointDescription() {
-        return "ASTM E1381-02 Lower Layer Protocol with frame sequencing, "
-             + "LRC validation, and bidirectional handshaking.";
     }
 
     @Override
