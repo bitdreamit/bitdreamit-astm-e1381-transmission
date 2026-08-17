@@ -22,7 +22,7 @@ set -e
 
 EXT_NAME="bitdreamit-astm-e1381-transmission"
 PROPS_CLASS="com/bitdreamit/connect/plugins/transmission/astm/shared/ASTME1381TransmissionModeProperties.class"
-PROPS_FQCN="com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties"
+PROPS_FQCN="com.mirth.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties"
 
 # --- Resolve the extension folder --------------------------------------------
 if [ -n "${2:-}" ]; then

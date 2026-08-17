@@ -7,7 +7,7 @@ import java.util.Map;
 import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381Constants;
 import com.mirth.connect.model.datatype.DataTypePropertyDescriptor;
 import com.mirth.connect.model.datatype.PropertyEditorType;
-import com.mirth.connect.model.transmission.TransmissionModeProperties;
+import com.mirth.connect.model.transmission.framemode.FrameModeProperties;
 
 /**
  * ASTM E1381-02 transmission-mode properties.
@@ -52,7 +52,7 @@ import com.mirth.connect.model.transmission.TransmissionModeProperties;
  * of truth for field metadata, and (b) external tooling may use them
  * to introspect or bulk-load the properties.</p>
  */
-public class ASTME1381TransmissionModeProperties extends TransmissionModeProperties {
+public class ASTME1381TransmissionModeProperties extends FrameModeProperties {
 
     // --- Frame Settings ---
     private int enquiryByte             = ASTME1381Constants.ENQ;
@@ -100,6 +100,10 @@ public class ASTME1381TransmissionModeProperties extends TransmissionModePropert
 
     public ASTME1381TransmissionModeProperties() {
         super(ASTME1381Constants.PLUGIN_NAME);
+        // Set FrameModeProperties fields for Mirth compatibility
+        // (MLLP does the same in its constructor)
+        setStartOfMessageBytes(String.format("%02X", ASTME1381Constants.ENQ));
+        setEndOfMessageBytes(String.format("%02X", ASTME1381Constants.EOT));
     }
 
     /**
