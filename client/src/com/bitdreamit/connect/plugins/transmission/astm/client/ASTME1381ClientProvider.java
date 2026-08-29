@@ -13,10 +13,19 @@ import java.awt.event.ActionListener;
 /**
  * Client-side provider for ASTM E1381-02.
  *
- * <p>Mirrors Mirth's MLLPModeClientProvider: returns a small
- * {@link ASTME1381SettingsPanel} (with a settings button) from
+ * <p>Mirrors Mirth's {@code MLLPModeClientProvider}: returns a small
+ * {@link ASTME1381SettingsPanel} (a wrench-icon button) from
  * {@link #getSettingsComponent()}. When the user clicks the button,
  * the {@link ASTME1381SettingsDialog} modal dialog opens.</p>
+ *
+ * <p><b>Save wiring (v1.3.3):</b> The dialog takes the provider's
+ * current {@code props} reference in its constructor, loads every field
+ * from it on open, and writes the field values back into the SAME
+ * {@code props} object on OK. Because Mirth holds the same reference
+ * (it called {@link #setProperties(TransmissionModeProperties)} earlier),
+ * Mirth's channel-serialization picks up the changes automatically - no
+ * property-change event is needed. This was the root cause of the
+ * "Save button doesn't save" bug in v1.3.2.</p>
  */
 public class ASTME1381ClientProvider extends TransmissionModeClientProvider {
 
@@ -70,6 +79,9 @@ public class ASTME1381ClientProvider extends TransmissionModeClientProvider {
         if (p.getMaxFrameContentLength() <= 0) return false;
         if (p.getEstablishmentTimeout() <= 0) return false;
         if (p.getFrameTimeout() <= 0) return false;
+        if (p.getResponseTimeout() <= 0) return false;
+        if (p.getMaxTransferAttempts() <= 0) return false;
+        if (p.getChecksumByteLength() < 1 || p.getChecksumByteLength() > 2) return false;
         return true;
     }
 
@@ -82,11 +94,22 @@ public class ASTME1381ClientProvider extends TransmissionModeClientProvider {
             props.setEstablishmentTimeout(ASTME1381Constants.DEFAULT_ESTABLISHMENT_TIMEOUT);
         if (props.getFrameTimeout() <= 0)
             props.setFrameTimeout(ASTME1381Constants.DEFAULT_FRAME_TIMEOUT);
+        if (props.getResponseTimeout() <= 0)
+            props.setResponseTimeout(ASTME1381Constants.DEFAULT_RESPONSE_TIMEOUT);
+        if (props.getMaxTransferAttempts() <= 0)
+            props.setMaxTransferAttempts(ASTME1381Constants.DEFAULT_MAX_TRANSFER_ATTEMPTS);
+        if (props.getChecksumByteLength() < 1 || props.getChecksumByteLength() > 2)
+            props.setChecksumByteLength(ASTME1381Constants.DEFAULT_CHECKSUM_BYTE_LENGTH);
     }
 
     /**
-     * Returns a small panel with a "Frame Settings" button.
-     * Clicking the button opens the ASTME1381SettingsDialog modal.
+     * Returns a small panel with a "Frame Settings" (wrench icon) button.
+     * Clicking the button opens the {@link ASTME1381SettingsDialog} modal.
+     *
+     * <p>The panel is created lazily ONCE per provider instance - Mirth
+     * may call this method many times during the channel editor's
+     * lifetime, and we want the same panel reference each time so its
+     * event listeners don't accumulate.</p>
      */
     @Override
     public JComponent getSettingsComponent() {
@@ -102,10 +125,18 @@ public class ASTME1381ClientProvider extends TransmissionModeClientProvider {
         return settingsPanel;
     }
 
+    /**
+     * Open the settings dialog. Loads the current props into the dialog,
+     * shows it modally, and on OK the dialog has already written the
+     * field values back into the SAME props reference (so Mirth's
+     * channel-serialization picks up the changes automatically).
+     */
     private void openSettingsDialog() {
+        ensureProps();
+
         // Find the parent frame by walking up the component hierarchy
         Frame frame = parentFrame;
-        if (frame == null) {
+        if (frame == null && settingsPanel != null) {
             Component c = settingsPanel;
             while (c != null && !(c instanceof Frame)) {
                 c = c.getParent();
@@ -115,40 +146,25 @@ public class ASTME1381ClientProvider extends TransmissionModeClientProvider {
             }
         }
 
-        ASTME1381SettingsDialog dialog = new ASTME1381SettingsDialog(frame);
+        // Construct the dialog with the CURRENT props reference.
+        // The dialog loads from props on open, writes back to props on OK.
+        ASTME1381SettingsDialog dialog = new ASTME1381SettingsDialog(frame, props);
         dialog.setVisible(true);
 
+        // No post-processing needed - the dialog already mutated props in place.
+        // Mirth will see the changes the next time it serializes the channel.
         if (dialog.isOkPressed()) {
-            // User clicked OK - update properties from dialog
-            ensureProps();
-            try { props.setEnquiryByte(parseHex(dialog.getEnquiryByte())); } catch (Exception ignored) {}
-            try { props.setStartOfFrameByte(parseHex(dialog.getStartOfFrameByte())); } catch (Exception ignored) {}
-            try { props.setMaxFrameContentLength(Integer.parseInt(dialog.getMaxFrameContentLength())); } catch (Exception ignored) {}
-            try { props.setIntermediateEndOfFrame(parseHex(dialog.getIntermediateEndOfFrame())); } catch (Exception ignored) {}
-            try { props.setEndOfFrameByte(parseHex(dialog.getEndOfFrameByte())); } catch (Exception ignored) {}
-            try { props.setChecksumByteLength(Integer.parseInt(dialog.getChecksumByteLength())); } catch (Exception ignored) {}
-            try { props.setEndOfTransmissionByte(parseHex(dialog.getEndOfTransmissionByte())); } catch (Exception ignored) {}
-            try { props.setPositiveAckByte(parseHex(dialog.getPositiveAckByte())); } catch (Exception ignored) {}
-            try { props.setNegativeAckByte(parseHex(dialog.getNegativeAckByte())); } catch (Exception ignored) {}
-            try { props.setMaxTransferAttempts(Integer.parseInt(dialog.getMaxTransferAttempts())); } catch (Exception ignored) {}
-            try { props.setEstablishmentTimeout(Integer.parseInt(dialog.getEstablishmentTimeout())); } catch (Exception ignored) {}
-            try { props.setContentionTimeout(Integer.parseInt(dialog.getContentionTimeout())); } catch (Exception ignored) {}
-            try { props.setFrameTimeout(Integer.parseInt(dialog.getFrameTimeout())); } catch (Exception ignored) {}
-            try { props.setResponseTimeout(Integer.parseInt(dialog.getResponseTimeout())); } catch (Exception ignored) {}
-            props.setValidateFrameNumber(dialog.isValidateFrameNumber());
-            props.setIgnoreServerSideCancel(dialog.isIgnoreServerSideCancel());
-            props.setUseChecksum(dialog.isUseChecksum());
-            props.setUseStrictValidation(dialog.isUseStrictValidation());
-            props.setChecksumAlgorithm(dialog.getChecksumAlgorithm());
-            props.setBidirectional(dialog.isBidirectional());
-            props.setServerMode(dialog.isServerMode());
+            // Optional: trigger a re-validation of the props
+            checkProperties(props, false);
         }
     }
 
-    private int parseHex(String s) {
-        if (s == null || s.trim().isEmpty()) return 0;
-        s = s.trim().replace("0x", "").replace("0X", "");
-        return Integer.parseInt(s, 16);
+    /**
+     * Set the parent frame explicitly (used by Mirth's UI when embedding
+     * the settings panel in the channel editor).
+     */
+    public void setParentFrame(Frame parent) {
+        this.parentFrame = parent;
     }
 
     private void ensureProps() {

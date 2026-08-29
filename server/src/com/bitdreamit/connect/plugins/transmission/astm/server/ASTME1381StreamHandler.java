@@ -58,8 +58,8 @@ public class ASTME1381StreamHandler extends StreamHandler {
     private boolean sessionEstablished = false;
 
     public ASTME1381StreamHandler(InputStream inputStream, OutputStream outputStream,
-                                  BatchStreamReader batchStreamReader,
-                                  ASTME1381TransmissionModeProperties props) {
+                                   BatchStreamReader batchStreamReader,
+                                   ASTME1381TransmissionModeProperties props) {
         super(inputStream, outputStream, batchStreamReader);
         this.props = props;
     }
@@ -261,7 +261,7 @@ public class ASTME1381StreamHandler extends StreamHandler {
             int establishmentTimeout = props.getEstablishmentTimeout();
             while (!Thread.currentThread().isInterrupted()) {
                 if (establishmentTimeout > 0 &&
-                        System.currentTimeMillis() - startTime > establishmentTimeout) {
+                    System.currentTimeMillis() - startTime > establishmentTimeout) {
                     // Idle line: no instrument activity within the timeout.
                     // Caller retries — the port stays open.
                     return false;

@@ -1,12 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Mirth Connect transmission-mode definition for the
-  bitdreamit-astm-e1381-transmission extension.
 
-  All class names below MUST match the canonical package
-  `com.bitdreamit.connect.plugins.transmission.astm.*` and the jar
-  names MUST match the artifacts produced by distribution/build.sh.
--->
 <transmissionMode>
     <name>ASTM E1381</name>
     <description>BitDreamIT ASTM E1381-02 lower-layer transmission mode for Mirth Connect. Implements ENQ/ACK establishment, STX/ETB/ETX framing, Add-Mod-256 checksum, 0-7 frame sequencing, exponential ENQ backoff, per-frame retry, and per-phase timeouts. Transport-agnostic (TCP, Serial, any InputStream/OutputStream).</description>

@@ -5,6 +5,175 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 2026-08-29 - "Redesign settings dialog with Mirth private UI components + fix Save bug"
+
+This release redesigns the ASTM E1381 settings dialog to use Mirth Connect's
+private UI component library (the same components Mirth's built-in MLLP
+transmission mode uses), and fixes the long-standing "Save button doesn't
+save" bug.
+
+### Fixed
+- **Save button doesn't save (the actual root cause)**:
+  - Symptom: open the ASTM E1381 settings dialog, change a value, click
+    OK, deploy the channel - the OLD values were still there.
+  - Root cause: the v1.3.2 dialog never loaded its fields from the
+    Properties object on open (it showed hardcoded defaults), and on OK
+    the provider wrote the dialog values into a FRESH Properties object
+    via `ensureProps()` instead of writing back to the Properties
+    reference Mirth had passed in via `setProperties()`. Mirth held the
+    OLD reference and never saw the changes.
+  - Fix: `ASTME1381SettingsDialog` now takes the Properties object in
+    its constructor, calls `loadFromProperties()` on open to populate
+    every field, and `validateAndSave()` writes the field values back
+    INTO the SAME Properties object on OK. Mirth holds the same
+    reference (it called `setProperties()` earlier), so the changes
+    propagate to the channel XML automatically - no property-change
+    event is needed.
+
+### Changed
+- **Settings dialog now uses Mirth private UI components**:
+  - All `JTextField` instances replaced with
+    `com.mirth.connect.client.ui.components.MirthTextField`.
+  - All `JCheckBox` instances replaced with
+    `com.mirth.connect.client.ui.components.MirthCheckBox`.
+  - The `JComboBox<String>` for the checksum algorithm replaced with
+    `com.mirth.connect.client.ui.components.MirthComboBox`.
+  - Why: Mirth's private components pick up the Mirth L&F (look and
+    feel), tab-order, and validation styling automatically. The dialog
+    now looks and behaves exactly like Mirth's built-in MLLP
+    transmission mode settings dialog. Plain Swing components looked
+    out-of-place in the Mirth Administrator UI.
+- **Input validation added**: every field is now validated on OK.
+  Invalid fields get a red border and a tooltip explaining the problem.
+  The dialog stays open until all fields are valid or the user clicks
+  Cancel. A summary error dialog is shown if any field is invalid.
+- **Default button**: the OK button is now the default button (Enter
+  key activates it), matching Mirth's dialog convention.
+- **`ASTME1381ClientProvider`** no longer reads getter-by-getter from
+  the dialog after OK. The dialog writes directly to the props object,
+  which is the Mirth MLLP pattern.
+
+### Added
+- `ASTME1381ClientProvider.checkProperties()` now also validates
+  `responseTimeout`, `maxTransferAttempts`, and `checksumByteLength`
+  (the v1.3.2 implementation only checked 3 of the 7 numeric fields).
+- `ASTME1381ClientProvider.resetInvalidProperties()` now also resets
+  the 4 newly-validated fields if they are invalid.
+- `ASTME1381ClientProvider.setParentFrame(Frame)` - allows Mirth's UI
+  to set the parent frame explicitly when embedding the settings panel
+  in the channel editor (optional; the provider still walks up the
+  component hierarchy as a fallback).
+
+### Verification
+- All 4 modules (shared, server, client, test) compile cleanly against
+  Mirth Connect 4.5+ stubs.
+- All 30 existing JUnit tests pass (no regression on Frame /
+  FrameException / RetryMetrics / RoundTrip / Corruption tests).
+- The rebuilt `unsign/bitdreamit-astm-e1381-transmission-client.jar`
+  contains 8 client classes (vs 7 before - the new dialog has 2 inner
+  button-listener classes).
+- Bytecode signature check confirms the new dialog uses
+  `com.mirth.connect.client.ui.components.MirthTextField` (and the
+  other Mirth UI components) as private fields.
+
+## [1.3.2] - 2026-08-29 - "Fix four ASTM E1381 protocol state-machine bugs that broke large messages and killed the read loop after every transfer"
+
+This release fixes four long-standing bugs in `ASTME1381StreamHandler` that
+between them caused (a) every ASTM message with 8 or more frames to fail
+with a NAK-storm and (b) the read loop to die after every successfully
+received message. A companion patch for the `bitdreamit-mirth-labextensions`
+serial-connector is also included under `patches/`.
+
+### Fixed
+- **1. Frame-number wrap (`1,2,...,7,0,1,...`)**:
+  - Symptom: every message with >= 8 frames (very common for lab result
+    exports) failed. Frame "0" arrived, the handler expected "1",
+    sent NAK, the instrument resent "0", NAK again, until
+    `maxTransferAttempts` -> EOT -> message lost.
+  - Root cause: the old code did
+    `expectedSequenceNumber = (expectedSequenceNumber + 1) % 8;`
+    `if (expectedSequenceNumber == 0) expectedSequenceNumber = 1;`
+    which SKIPS frame number 0 entirely. Per ASTM E1381-02 section
+    6.3.2 the receiver numbers frames 1,2,...,7,0,1,2,...
+  - Fix: removed the `if (... == 0) ... = 1;` line on both the read
+    side (line 116 old) and the write side (line 195 old).
+- **2. EOT during session establishment**:
+  - Symptom: the sender normally sends EOT after every completed
+    transfer. The old `establishSession()` treated that EOT as a
+    cancel (`return false`), `read()` then threw `IOException`, and
+    the read cycle died after EVERY message. The user had to restart
+    the channel between every ASTM transaction.
+  - Root cause: the E1381 receiver state machine says EOT returns
+    the receiver to IDLE, not to a fatal error. The old code conflated
+    "sender cancelled mid-transfer" (a real error) with "sender ended
+    the previous transfer normally" (benign).
+  - Fix: `establishSession()` now consumes EOT, logs it at INFO, and
+    keeps waiting for the next ENQ. Only the establishment timeout
+    (default 15s) returns false; the caller retries, the port stays
+    open.
+- **3. NAK retry timeout**:
+  - Symptom: when a frame was NAKed and resent, the retry inherited
+    the failed attempt's elapsed time against `frameTimeout`. For a
+    noisy serial line the retry would often time out before the
+    instrument had finished resending, even though the resend itself
+    was within spec.
+  - Fix: `frameStartTime` is now reset every time a NAK is sent and
+    the loop returns to the top to receive the resent frame. The
+    resent frame gets a fresh, full timeout window.
+- **4. Clean shutdown on channel stop**:
+  - Symptom: stopping a channel whose reader was blocked in
+    `establishSession()` or `readResponse()` did not interrupt the
+    thread; the connector held the serial port open for up to
+    `establishmentTimeout` (default 15s) before finally exiting.
+  - Fix: all poll loops now check `Thread.currentThread().isInterrupted()`
+    and convert `InterruptedException` to `IOException` with a clear
+    message, so the channel stop propagates immediately.
+
+### Added
+- `patches/serialsourceconnector-astm-no-data-fix.patch` - companion
+  patch for the separate `bitdreamit-mirth-labextensions` repository
+  (serial-connector module). This patch is NOT part of the ASTM plugin
+  itself - it lives in a different Maven module / GitHub repo - but
+  the two extensions must be deployed together for ASTM-over-serial
+  to work. The patch fixes the no-data bug where the serial connector
+  consumed every incoming byte with `serialPort.readBytes()` and then
+  created a `StreamHandler` over `serialPort.getInputStream()` (a
+  second reader on the same port). The handler never saw the consumed
+  bytes, waited for ENQ until `establishmentTimeout`, threw, and the
+  consumed chunk was silently discarded. Result: connection OK but
+  ZERO data received. The fix makes the `StreamHandler` the SOLE
+  reader of the port in ASTM mode, with one persistent handler per
+  connection so protocol state survives across messages and ENQ/EOT
+  cycles. Apply with `cd bitdreamit-mirth-labextensions && git am
+  patches/serialsourceconnector-astm-no-data-fix.patch`.
+
+### Changed
+- Bumped `pluginVersion` to `1.3.2` in `plugin.xml`, `server/resources/plugin.xml`,
+  and `client/resources/plugin.xml`.
+- Bumped `ASTME1381Constants.PLUGIN_VERSION` to `1.3.2` (was stale at `1.1.0`).
+
+### Added (deployment tooling)
+- `scripts/fix_classcast_properties_in_serverclasses.sh` - diagnostic and
+  remediation script for the most common deployment error: a stale
+  `plugin.xml` from a pre-v1.2.5 deploy still listing
+  `ASTME1381TransmissionModeProperties` in `<serverClasses>` /
+  `<clientClasses>`. The script scans every `plugin.xml` on disk and
+  inside every jar in the Mirth extension folder, reports any that still
+  list the Properties class, backs them up, and replaces them with the
+  clean v1.3.2 version.
+- `TROUBLESHOOTING.md` - new top-level troubleshooting guide covering
+  the ClassCastException, settings-panel-not-appearing, no-data-on-serial,
+  and common compile errors.
+
+### Verification
+- All 30 existing JUnit tests still pass (no regression on Frame /
+  FrameException / RetryMetrics / RoundTrip / Corruption tests).
+- The four fixes are confined to `ASTME1381StreamHandler.java`; no
+  other Java source was modified.
+- The StreamHandler compiles cleanly against the Mirth Connect 4.5+
+  stubs (`StreamHandler`, `BatchStreamReader`,
+  `ASTME1381TransmissionModeProperties`, `ASTME1381Constants`).
+
 ## [1.2.6] - 2026-08-16 - "Remove ASTME1381ClientProvider from clientClasses (silent ClassCastException)"
 
 This patch fixes the settings dialog not appearing in the channel

@@ -1,7 +1,7 @@
 ============================================================
 bitdreamit-astm-e1381-transmission
-Production-hardened release v1.2.6
-Built: 2026-08-16
+Production-hardened release v1.3.3
+Built: 2026-08-29
 ============================================================
 
 This is a production-ready rebuild of the original
@@ -12,17 +12,52 @@ repository. See CHANGELOG.md for the full per-version history.
 RECENT FIX HISTORY (newest first)
 ============================================================
 
-v1.2.6 (this release)
+v1.3.3 (this release)
+  - Redesigned the ASTM E1381 settings dialog to use Mirth Connect's
+    private UI component library (MirthTextField, MirthCheckBox,
+    MirthComboBox) - the same components Mirth's built-in MLLP
+    transmission mode uses. The dialog now picks up Mirth's L&F,
+    tab-order, and validation styling automatically.
+  - Fixed the "Save button doesn't save" bug. Root cause: the v1.3.2
+    dialog never loaded its fields from the Properties object on open
+    (it showed hardcoded defaults), and on OK the provider wrote the
+    dialog values into a FRESH Properties object instead of writing
+    back to the Properties reference Mirth had passed in via
+    setProperties(). Fix: the dialog now takes the Properties object
+    in its constructor, calls loadFromProperties() on open, and writes
+    the field values back INTO the SAME Properties object on OK.
+  - Added input validation with red-border error highlighting on every
+    field. The dialog stays open until all fields are valid or the
+    user clicks Cancel.
+  - OK button is now the default button (Enter activates it).
+  - Extended checkProperties() and resetInvalidProperties() to cover
+    all 7 numeric fields (responseTimeout, maxTransferAttempts,
+    checksumByteLength were missing in v1.3.2).
+
+v1.3.2
+  - Fixed 4 ASTM E1381 protocol state-machine bugs in
+    ASTME1381StreamHandler.java:
+    (1) frame-number wrap 1,2,...,7,0,1,... now correct (the
+        old code skipped frame 0 and NAK-looped every message
+        with >= 8 frames);
+    (2) EOT during session establishment no longer aborts the
+        receiver - it returns to IDLE and waits for the next
+        ENQ (the old code died after every successful transfer);
+    (3) frameStartTime is now reset on every NAK so the retried
+        frame gets a fresh timeout window;
+    (4) all poll loops honor Thread.interrupted() and convert
+        InterruptedException to IOException so stopping the
+        channel breaks out of blocking ENQ waits immediately.
+  - Added patches/serialsourceconnector-astm-no-data-fix.patch
+    (companion patch for the separate bitdreamit-mirth-labextensions
+    serial-connector module).
+
+v1.2.6
   - Removed ASTME1381ClientProvider from <clientClasses>. It
     extends TransmissionModeClientProvider (NOT ClientPlugin), so
     Mirth's Administrator UI failed silently when trying to load
-    it as a ClientPlugin. This caused the extension to not fully
-    load on the client side, disabling the "Frame Settings" link.
-    ASTME1381ClientProvider is instantiated by createProvider(),
-    not by Mirth's extension loader.
-  - Improved settings panel layout to match the MLLM reference:
-    two-column layout with settings on the left and byte
-    abbreviations reference on the right.
+    it as a ClientPlugin.
+  - Improved settings panel layout to match the MLLM reference.
 
 v1.2.5
   - Removed ASTME1381TransmissionModeProperties from serverClasses
@@ -54,8 +89,17 @@ PRODUCTION FILE INVENTORY (5 files)
   |-- plugin.xml
   |-- transmissionmode.xml
   |-- bitdreamit-astm-e1381-transmission-shared.jar
-  |-- bitdreamit-astm-e1381-transmission-server.jar
-  `-- bitdreamit-astm-e1381-transmission-client.jar
+  |-- bitdreamit-astm-e1381-transmission-server.jar    (REBUILT with v1.3.2 fix)
+  `-- bitdreamit-astm-e1381-transmission-client.jar    (REBUILT with v1.3.3 UI redesign)
+
+The pre-built jars in the unsign/ directory have been updated.
+For v1.3.3: the client.jar was rebuilt from source with the new
+ASTME1381SettingsDialog (uses MirthTextField/MirthCheckBox/MirthComboBox)
+and the fixed save-back-to-properties wiring.
+For v1.3.2: the server.jar was rebuilt with the fixed ASTME1381StreamHandler.
+The shared.jar is unchanged from v1.3.1 (none of the v1.3.2 or v1.3.3 fixes
+touched the shared module). You can deploy the unsign/*.jar files directly,
+or rebuild from source using distribution/build.sh.
 
 SIGNING: not required for Mirth Connect 4.x by default.
 
