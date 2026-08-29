@@ -1,27 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  Mirth Connect transmission-mode definition for the
-  bitdreamit-astm-e1381-transmission extension.
-
-  All class names below MUST match the canonical package
-  `com.bitdreamit.connect.plugins.transmission.astm.*` and the jar
-  names MUST match the artifacts produced by distribution/build.sh.
--->
 <transmissionMode>
-    <name>ASTM E1381</name>
-    <description>BitDreamIT ASTM E1381-02 lower-layer transmission mode for Mirth Connect. Implements ENQ/ACK establishment, STX/ETB/ETX framing, Add-Mod-256 checksum, 0-7 frame sequencing, exponential ENQ backoff, per-frame retry, and per-phase timeouts. Transport-agnostic (TCP, Serial, any InputStream/OutputStream).</description>
-
-    <!-- Server-side: TransmissionModePlugin implementation -->
-    <serverClassName>com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin</serverClassName>
-
-    <!-- Client-side UI: TransmissionModeClientPlugin (settings panel registration) -->
-    <clientClassName>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin</clientClassName>
-
-    <!-- Shared: TransmissionModeProperties + Constants + Frame + FrameException + RetryMetrics -->
-    <sharedClassName>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</sharedClassName>
-
-    <!-- Jar names match distribution/build.sh output -->
-    <library path="bitdreamit-astm-e1381-transmission-shared.jar"  type="SHARED"/>
-    <library path="bitdreamit-astm-e1381-transmission-server.jar"   type="SERVER"/>
-    <library path="bitdreamit-astm-e1381-transmission-client.jar"   type="CLIENT"/>
+	<name>ASTM E1381</name>
+	<description>ASTM E1381 transmission mode for socket/serial connectors.</description>
+	<serverClassName>com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin</serverClassName>
+	<clientClassName>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin</clientClassName>
+	<sharedClassName>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</sharedClassName>
+	<library path="bitdreamit-astm-e1381-transmission-shared.jar" type="SHARED"/>
+	<library path="bitdreamit-astm-e1381-transmission-server.jar" type="SERVER"/>
+	<library path="bitdreamit-astm-e1381-transmission-client.jar" type="CLIENT"/>
 </transmissionMode>
