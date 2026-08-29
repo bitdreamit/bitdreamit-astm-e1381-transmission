@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <transmissionMode>
-    <name>ASTM E1381</name>
-    <description>ASTM E1381 transmission mode for socket/serial connectors.</description>
-    <serverClassName>com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin</serverClassName>
-    <clientClassName>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin</clientClassName>
-    <sharedClassName>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</sharedClassName>
-    <library path="bitdreamit-astm-e1381-transmission-shared.jar" type="SHARED"/>
-    <library path="bitdreamit-astm-e1381-transmission-server.jar" type="SERVER"/>
-    <library path="bitdreamit-astm-e1381-transmission-client.jar" type="CLIENT"/>
+	<name>ASTM E1381</name>
+	<description>ASTM E1381 transmission mode for socket/serial connectors.</description>
+	<serverClassName>com.bitdreamit.connect.plugins.transmission.astm.server.ASTME1381TransmissionModePlugin</serverClassName>
+	<clientClassName>com.bitdreamit.connect.plugins.transmission.astm.client.ASTME1381TransmissionModeClientPlugin</clientClassName>
+	<sharedClassName>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</sharedClassName>
+	<library path="bitdreamit-astm-e1381-transmission-shared.jar" type="SHARED"/>
+	<library path="bitdreamit-astm-e1381-transmission-server.jar" type="SERVER"/>
+	<library path="bitdreamit-astm-e1381-transmission-client.jar" type="CLIENT"/>
 </transmissionMode>
