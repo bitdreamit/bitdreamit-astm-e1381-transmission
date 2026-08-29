@@ -4,14 +4,18 @@
 # -----------------------------------------------------------------------------
 #
 # Produces a self-contained folder at out/bitdreamit-astm-e1381-transmission/
-# containing exactly the files Mirth Connect 4.x needs to load the extension:
+# containing exactly the files Mirth Connect 4.x needs to load the extension.
+# Matches the layout of Mirth's built-in MLLP plugin (3 jars + 1 plugin.xml):
 #
 #   out/bitdreamit-astm-e1381-transmission/
 #     plugin.xml                                       <-- extension descriptor
-#     transmissionmode.xml                             <-- transmission mode descriptor
 #     bitdreamit-astm-e1381-transmission-shared.jar    <-- shared classes
 #     bitdreamit-astm-e1381-transmission-server.jar    <-- server classes (incl. shared)
 #     bitdreamit-astm-e1381-transmission-client.jar    <-- client classes (incl. shared)
+#
+# No transmissionmode.xml - Mirth 4.5+ discovers the transmission mode
+# automatically from the <serverClasses> entry that extends
+# TransmissionModeProvider (same as MLLP).
 #
 # Usage:
 #   cd distribution && ./deploy.sh             # build + assemble extension folder
@@ -41,9 +45,8 @@ echo "[deploy] step 2/3: assembling extension folder at $EXT_DIR..."
 rm -rf "$EXT_DIR"
 mkdir -p "$EXT_DIR"
 
-# Copy the two XML files (root-level descriptors)
+# Copy plugin.xml (the only XML descriptor - same as Mirth's MLLP)
 cp "$PROJECT_DIR/plugin.xml"             "$EXT_DIR/plugin.xml"
-cp "$PROJECT_DIR/transmissionmode.xml"   "$EXT_DIR/transmissionmode.xml"
 
 # Copy the three JARs
 cp "$OUT_DIR/bitdreamit-astm-e1381-transmission-shared.jar"  "$EXT_DIR/"

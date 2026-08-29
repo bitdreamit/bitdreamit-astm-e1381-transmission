@@ -6,10 +6,11 @@
 #
 # Verifies that:
 #   1. The extension folder exists at $MIRTH_HOME/extensions/<ext-name>/
-#   2. All 5 production files are present (3 JARs + 2 XMLs)
+#   2. All 4 production files are present (3 JARs + 1 plugin.xml)
+#      (matches Mirth's MLLP layout - no transmissionmode.xml)
 #   3. The plugin.xml is in the correct Mirth 4.5.2 format (<string> + <library>)
-#   4. The ASTME1381TransmissionModeProperties class is listed in BOTH
-#      <serverClasses> and <clientClasses>
+#   4. The ASTME1381TransmissionModeProperties class is NOT listed in
+#      <serverClasses> or <clientClasses> (the v1.2.5 fix - prevents ClassCastException)
 #   5. The class is actually present inside each JAR
 #   6. The extension folder name matches the `path` attribute in plugin.xml
 #
@@ -47,17 +48,16 @@ echo "[1/6] Checking extension folder exists..."
 if [ ! -d "$EXT_DIR" ]; then
     echo "  FAIL: extension folder does not exist."
     echo "  Expected: $EXT_DIR"
-    echo "  Fix: copy the 5 production files to this location, then restart Mirth."
+    echo "  Fix: copy the 4 production files to this location, then restart Mirth."
     exit 1
 fi
 echo "  OK: folder exists."
 echo ""
 
-# --- Check 2: all 5 production files are present ----------------------------
-echo "[2/6] Checking all 5 production files are present..."
+# --- Check 2: all 4 production files are present ----------------------------
+echo "[2/6] Checking all 4 production files are present..."
 EXPECTED_FILES=(
     "plugin.xml"
-    "transmissionmode.xml"
     "bitdreamit-astm-e1381-transmission-shared.jar"
     "bitdreamit-astm-e1381-transmission-server.jar"
     "bitdreamit-astm-e1381-transmission-client.jar"
