@@ -250,6 +250,8 @@ public class ASTME1381StreamHandler extends StreamHandler {
 
     private boolean establishSession() throws IOException {
         long startTime = System.currentTimeMillis();
+        int bytesSeen = 0;
+        StringBuilder firstBytes = new StringBuilder();
 
         if (props.isServerMode()) {
             // Server: wait for ENQ, send ACK.
@@ -259,17 +261,36 @@ public class ASTME1381StreamHandler extends StreamHandler {
             // cycle died after every message. Per E1381 the receiver goes to
             // IDLE and keeps waiting for the next ENQ.
             int establishmentTimeout = props.getEstablishmentTimeout();
+            logger.info("ASTM E1381: waiting for ENQ (0x05) from instrument, timeout=" +
+                        establishmentTimeout + "ms, ENQ byte=0x" +
+                        Integer.toHexString(props.getEnquiryByte() & 0xFF));
             while (!Thread.currentThread().isInterrupted()) {
                 if (establishmentTimeout > 0 &&
                     System.currentTimeMillis() - startTime > establishmentTimeout) {
                     // Idle line: no instrument activity within the timeout.
-                    // Caller retries — the port stays open.
+                    // Log what we DID see (if anything) so the user can diagnose.
+                    if (bytesSeen > 0) {
+                        logger.warn("ASTM E1381: establishment timeout after seeing " + bytesSeen +
+                                    " byte(s): " + firstBytes.toString() +
+                                    " — expected ENQ (0x05) as first byte. " +
+                                    "Check that the instrument is speaking ASTM E1381 (not raw TCP or HL7 MLLP).");
+                    } else {
+                        logger.warn("ASTM E1381: establishment timeout — no bytes received from " +
+                                    "instrument within " + establishmentTimeout + "ms. " +
+                                    "Check that the instrument is connected and sending ENQ (0x05).");
+                    }
                     return false;
                 }
                 try {
                     if (inputStream.available() > 0) {
                         int b = inputStream.read();
+                        bytesSeen++;
+                        if (firstBytes.length() < 32) {
+                            firstBytes.append(String.format("0x%02X ", b & 0xFF));
+                        }
                         if (b == props.getEnquiryByte()) {
+                            logger.info("ASTM E1381: ENQ received after " + bytesSeen +
+                                        " byte(s), sending ACK");
                             sendACK();
                             sessionEstablished = true;
                             expectedSequenceNumber = 1;
@@ -279,7 +300,12 @@ public class ASTME1381StreamHandler extends StreamHandler {
                             logger.info("EOT received during establishment - sender ended previous session, waiting for ENQ");
                             continue;
                         }
-                        // any other byte: stray byte before ENQ — discard
+                        // any other byte: stray byte before ENQ — log and discard
+                        if (bytesSeen <= 5) {
+                            logger.info("ASTM E1381: received byte 0x" +
+                                        Integer.toHexString(b & 0xFF) + " (char='" +
+                                        printableChar(b) + "') while waiting for ENQ — discarding");
+                        }
                     }
                     Thread.sleep(50);
                 } catch (InterruptedException e) {
@@ -419,5 +445,27 @@ public class ASTME1381StreamHandler extends StreamHandler {
 
         byte[] calculated = calculateChecksum(frame.toByteArray());
         return Arrays.equals(calculated, receivedChecksum);
+    }
+
+    /**
+     * Convert a byte to a printable character representation for logging.
+     * Control characters (0x00-0x1F) and DEL (0x7F) are shown as their
+     * abbreviation (e.g. 0x05 -> "<ENQ>"); printable ASCII is shown as the
+     * character itself; everything else is shown as "?".
+     */
+    private static String printableChar(int b) {
+        b = b & 0xFF;
+        if (b == 0x05) return "<ENQ>";
+        if (b == 0x06) return "<ACK>";
+        if (b == 0x15) return "<NAK>";
+        if (b == 0x02) return "<STX>";
+        if (b == 0x03) return "<ETX>";
+        if (b == 0x17) return "<ETB>";
+        if (b == 0x04) return "<EOT>";
+        if (b == 0x0D) return "<CR>";
+        if (b == 0x0A) return "<LF>";
+        if (b == 0x00) return "<NUL>";
+        if (b >= 0x20 && b < 0x7F) return String.valueOf((char) b);
+        return "?";
     }
 }

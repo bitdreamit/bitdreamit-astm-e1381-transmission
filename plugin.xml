@@ -2,7 +2,7 @@
 <pluginMetaData path="bitdreamit-astm-e1381-transmission">
 	<name>ASTM E1381 Transmission Mode</name>
 	<author>Bit Dream IT</author>
-	<pluginVersion>1.3.5</pluginVersion>
+	<pluginVersion>1.3.6</pluginVersion>
 	<mirthVersion>4.5.2</mirthVersion>
 	<url>https://bitdreamit.com</url>
 	<description>This plugin provides an ASTM E1381 transmission mode for socket/serial connectors.</description>

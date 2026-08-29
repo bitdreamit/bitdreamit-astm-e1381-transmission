@@ -85,5 +85,5 @@ public final class ASTME1381Constants {
     public static final String PLUGIN_NAME    = "ASTM E1381";
     /** Legacy alias for {@link #PLUGIN_NAME} - retained for source-level compatibility. */
     public static final String PLUGIN_POINT_NAME = PLUGIN_NAME;
-    public static final String PLUGIN_VERSION = "1.3.5";
+    public static final String PLUGIN_VERSION = "1.3.6";
 }
