@@ -1,16 +1,15 @@
 package com.bitdreamit.connect.plugins.transmission.astm.client;
 
 import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381Constants;
-import com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties;
 import com.mirth.connect.plugins.TransmissionModeClientProvider;
 import com.mirth.connect.plugins.TransmissionModePlugin;
 
 /**
  * Client-side transmission-mode plugin for ASTM E1381-02.
  *
- * Follows the exact same pattern as Mirth's built-in MLLP plugin.
- * Clean MLLP-style pattern - extends FrameModeProperties
- * auto-allows them.
+ * Extends Mirth's TransmissionModePlugin (the same base class Mirth's
+ * built-in MLLPModePlugin uses). Mirth's client-side extension loader
+ * instantiates this class via the <clientClasses> entry in plugin.xml.
  */
 public class ASTME1381TransmissionModeClientPlugin extends TransmissionModePlugin {
 
@@ -23,7 +22,16 @@ public class ASTME1381TransmissionModeClientPlugin extends TransmissionModePlugi
         return new ASTME1381ClientProvider();
     }
 
+    @Override
     public String getPluginPointName() {
         return ASTME1381Constants.PLUGIN_NAME;
     }
+
+    @Override
+    public String getPluginPointDescription() {
+        return "ASTM E1381-02 lower-layer transmission framing protocol (client side). "
+             + "Provides the settings panel for configuring ENQ/ACK/NAK bytes, STX/ETB/ETX "
+             + "framing, checksum algorithm, frame sequencing, and per-phase timeouts.";
+    }
 }
+
