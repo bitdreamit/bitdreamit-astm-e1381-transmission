@@ -17,18 +17,49 @@ import com.mirth.connect.donkey.server.message.batch.BatchStreamReader;
  * ASTM E1381-95 Stream Handler
  * Handles STX/ETX/ETB framing, LRC/Checksum validation, sequence numbers 0-7,
  * ACK/NAK handshaking, and ENQ/EOT session control.
+ *
+ * =========================================================================
+ * FIXES:
+ *
+ * 1. FRAME NUMBER WRAP (no-data / NAK-storm bug):
+ *    The old code did:
+ *        expectedSequenceNumber = (expectedSequenceNumber + 1) % 8;
+ *        if (expectedSequenceNumber == 0) expectedSequenceNumber = 1;
+ *    which SKIPS frame number 0. Per ASTM E1381 the receiver numbers frames
+ *    1,2,...,7,0,1,2,...  With the old code any message with >= 8 frames
+ *    (very common for lab result exports) failed: frame "0" arrived, the
+ *    handler expected "1", sent NAK, the instrument resent "0", NAK again,
+ *    until maxTransferAttempts -> EOT -> message lost.
+ *    Fix: remove the "skip 0" line so the cycle is 1-7,0 as the standard requires.
+ *
+ * 2. EOT DURING SESSION ESTABLISHMENT:
+ *    The sender normally sends EOT after every completed transfer. The old
+ *    establishSession() treated that EOT as a cancel (return false) and
+ *    read() threw IOException, killing the read cycle after EVERY message.
+ *    Per the E1381 receiver state machine, EOT simply returns the receiver
+ *    to IDLE. Fix: consume EOT, log it, and keep waiting for the next ENQ.
+ *
+ * 3. NAK RETRY TIMEOUT:
+ *    frameStartTime is now reset when a frame is NAKed and resent, so the
+ *    retry gets a fair timeout window instead of inheriting the failed
+ *    attempt's elapsed time.
+ *
+ * 4. CLEAN SHUTDOWN:
+ *    Poll loops now honor thread interruption (throw IOException) so
+ *    stopping the connector breaks out of a blocking ENQ wait immediately.
+ * =========================================================================
  */
 public class ASTME1381StreamHandler extends StreamHandler {
 
     private Logger logger = Logger.getLogger(this.getClass());
     private ASTME1381TransmissionModeProperties props;
-    private int expectedSequenceNumber = 1; // ASTM frames start at 1, wrap 0-7
+    private int expectedSequenceNumber = 1; // ASTM frames start at 1, cycle 1-7,0
     private int transferAttemptCount = 0;
     private boolean sessionEstablished = false;
 
     public ASTME1381StreamHandler(InputStream inputStream, OutputStream outputStream,
-                                   BatchStreamReader batchStreamReader,
-                                   ASTME1381TransmissionModeProperties props) {
+                                  BatchStreamReader batchStreamReader,
+                                  ASTME1381TransmissionModeProperties props) {
         super(inputStream, outputStream, batchStreamReader);
         this.props = props;
     }
@@ -93,6 +124,8 @@ public class ASTME1381StreamHandler extends StreamHandler {
                     sendNAK();
                     payload.reset();
                     frameBuffer.reset();
+                    // FIX (3): give the resent frame a fresh timeout window
+                    frameStartTime = System.currentTimeMillis();
                     continue; // Retry
                 }
 
@@ -103,6 +136,7 @@ public class ASTME1381StreamHandler extends StreamHandler {
                         logger.error("Invalid ASTM sequence number: " + seqNum);
                         sendNAK();
                         payload.reset();
+                        frameStartTime = System.currentTimeMillis();
                         continue;
                     }
                     if (seqNum != expectedSequenceNumber) {
@@ -110,10 +144,13 @@ public class ASTME1381StreamHandler extends StreamHandler {
                         // ASTM spec: NAK and retry
                         sendNAK();
                         payload.reset();
+                        frameStartTime = System.currentTimeMillis();
                         continue;
                     }
+                    // FIX (1): ASTM E1381 frame numbers cycle 1,2,...,7,0,1,...
+                    // The old code forced 0 back to 1, skipping frame number 0 entirely,
+                    // which NAK-looped every message with >= 8 frames.
                     expectedSequenceNumber = (expectedSequenceNumber + 1) % 8;
-                    if (expectedSequenceNumber == 0) expectedSequenceNumber = 1; // ASTM uses 1-7,0
                 }
 
                 // Strip sequence number from payload if present
@@ -127,7 +164,8 @@ public class ASTME1381StreamHandler extends StreamHandler {
                 frameComplete = true;
 
                 if (!isIntermediate) {
-                    // Final frame - expect EOT or next ENQ
+                    // Final frame - sender will send EOT; next read() re-establishes
+                    // the session on the next ENQ. (FIX 2 makes that EOT benign.)
                     sessionEstablished = false;
                 }
 
@@ -191,8 +229,8 @@ public class ASTME1381StreamHandler extends StreamHandler {
                 throw new IOException("Frame send failed after max attempts");
             }
 
+            // FIX (1): same 1-7,0 cycle for the sender side
             seqNum = (seqNum + 1) % 8;
-            if (seqNum == 0) seqNum = 1;
             offset += chunkSize;
             moreData = !isLast;
         }
@@ -214,23 +252,45 @@ public class ASTME1381StreamHandler extends StreamHandler {
         long startTime = System.currentTimeMillis();
 
         if (props.isServerMode()) {
-            // Server: wait for ENQ, send ACK
-            while (System.currentTimeMillis() - startTime < props.getEstablishmentTimeout()) {
-                if (inputStream.available() > 0) {
-                    int b = inputStream.read();
-                    if (b == props.getEnquiryByte()) {
-                        sendACK();
-                        sessionEstablished = true;
-                        expectedSequenceNumber = 1;
-                        transferAttemptCount = 0;
-                        return true;
-                    } else if (b == props.getEndOfTransmissionByte() && !props.isIgnoreServerSideCancel()) {
-                        logger.info("EOT received during establishment - canceling session");
-                        return false;
-                    }
+            // Server: wait for ENQ, send ACK.
+            // FIX (2): EOT received here is BENIGN — it terminates the PREVIOUS
+            // transfer (the sender always sends EOT after the last frame).
+            // The old code returned false on EOT and read() threw, so the read
+            // cycle died after every message. Per E1381 the receiver goes to
+            // IDLE and keeps waiting for the next ENQ.
+            int establishmentTimeout = props.getEstablishmentTimeout();
+            while (!Thread.currentThread().isInterrupted()) {
+                if (establishmentTimeout > 0 &&
+                        System.currentTimeMillis() - startTime > establishmentTimeout) {
+                    // Idle line: no instrument activity within the timeout.
+                    // Caller retries — the port stays open.
+                    return false;
                 }
-                try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                try {
+                    if (inputStream.available() > 0) {
+                        int b = inputStream.read();
+                        if (b == props.getEnquiryByte()) {
+                            sendACK();
+                            sessionEstablished = true;
+                            expectedSequenceNumber = 1;
+                            transferAttemptCount = 0;
+                            return true;
+                        } else if (b == props.getEndOfTransmissionByte()) {
+                            logger.info("EOT received during establishment - sender ended previous session, waiting for ENQ");
+                            continue;
+                        }
+                        // any other byte: stray byte before ENQ — discard
+                    }
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    // FIX (4): allow the connector to stop the reader thread cleanly
+                    throw new IOException("Interrupted while waiting for ENQ", e);
+                } catch (IOException e) {
+                    throw e;
+                }
             }
+            return false;
         } else {
             // Client: send ENQ, wait for ACK
             for (int attempt = 0; attempt < props.getMaxTransferAttempts(); attempt++) {
@@ -243,10 +303,13 @@ public class ASTME1381StreamHandler extends StreamHandler {
                     transferAttemptCount = 0;
                     return true;
                 }
-                try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+                try { Thread.sleep(500); } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while waiting for ACK", e);
+                }
             }
+            return false;
         }
-        return false;
     }
 
     // --- Control Signals ---
@@ -272,7 +335,11 @@ public class ASTME1381StreamHandler extends StreamHandler {
             if (inputStream.available() > 0) {
                 return inputStream.read();
             }
-            try { Thread.sleep(10); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            try { Thread.sleep(10); } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                // FIX (4): clean shutdown support
+                throw new IOException("Interrupted while waiting for response", e);
+            }
         }
         return -1;
     }
