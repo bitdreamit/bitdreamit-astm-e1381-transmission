@@ -2,9 +2,14 @@
 # -----------------------------------------------------------------------------
 # Build script for bitdreamit-astm-e1381-transmission (production-ready)
 # -----------------------------------------------------------------------------
-# Produces three jars (shared / server / client) and copies plugin.xml,
-# matching the layout Mirth uses for its built-in MLLP plugin
-# (3 jars + 1 plugin.xml, no transmissionmode.xml).
+# Produces three jars (shared / server / client) and copies plugin.xml +
+# transmissionmode.xml. The transmissionmode.xml is REQUIRED for extension
+# transmission modes - its <sharedClassName> element is what Mirth's
+# TransmissionModeController uses to call xStream.allowTypes() to whitelist
+# the Properties class. Without it, channel XML deserialization fails with
+# ForbiddenClassException. (Mirth's built-in MLLP doesn't need it because
+# MLLP's classes are in Mirth's core jars which are already on XStream's
+# allow-list.)
 #
 # Requirements:
 #   - JDK 8+ (tested with OpenJDK 17)
@@ -195,14 +200,18 @@ build() {
     jar cf "$OUT_DIR/bitdreamit-astm-e1381-transmission-client.jar" \
         -C "$OUT_DIR/client-jar" .
 
-    # 8. Copy the production plugin.xml to the output directory.
-    #    Only plugin.xml is needed - exactly like Mirth's MLLP plugin.
-    #    The transmission mode is registered programmatically by the
-    #    plugin's start() method via the TransmissionModeProvider base
-    #    class, NOT via a separate transmissionmode.xml file.
-    #    (Mirth 4.5+ discovers transmission modes from <serverClasses>.)
-    echo "[build] copying plugin.xml..."
+    # 8. Copy the production XML files to the output directory.
+    #    Both plugin.xml AND transmissionmode.xml are needed:
+    #      - plugin.xml: tells Mirth which plugin classes to load
+    #      - transmissionmode.xml: tells Mirth's TransmissionModeController
+    #        the server/client/shared class names. The <sharedClassName>
+    #        element is used to register the Properties class with XStream's
+    #        security framework (xStream.allowTypes()). Without it, XStream
+    #        rejects the Properties class at channel-deserialization time
+    #        with ForbiddenClassException.
+    echo "[build] copying production XML files..."
     cp "$PROJECT_DIR/plugin.xml"             "$OUT_DIR/plugin.xml"
+    cp "$PROJECT_DIR/transmissionmode.xml"   "$OUT_DIR/transmissionmode.xml"
 
     echo ""
     echo "[build] complete. Artifacts:"

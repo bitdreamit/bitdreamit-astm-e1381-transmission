@@ -4,18 +4,23 @@
 # -----------------------------------------------------------------------------
 #
 # Produces a self-contained folder at out/bitdreamit-astm-e1381-transmission/
-# containing exactly the files Mirth Connect 4.x needs to load the extension.
-# Matches the layout of Mirth's built-in MLLP plugin (3 jars + 1 plugin.xml):
+# containing exactly the files Mirth Connect 4.x needs to load the extension:
 #
 #   out/bitdreamit-astm-e1381-transmission/
 #     plugin.xml                                       <-- extension descriptor
+#     transmissionmode.xml                             <-- transmission mode descriptor
+#                                                       (REQUIRED for extension
+#                                                        transmission modes - its
+#                                                        <sharedClassName> tells
+#                                                        Mirth's XStream to allow
+#                                                        the Properties class)
 #     bitdreamit-astm-e1381-transmission-shared.jar    <-- shared classes
 #     bitdreamit-astm-e1381-transmission-server.jar    <-- server classes (incl. shared)
 #     bitdreamit-astm-e1381-transmission-client.jar    <-- client classes (incl. shared)
 #
-# No transmissionmode.xml - Mirth 4.5+ discovers the transmission mode
-# automatically from the <serverClasses> entry that extends
-# TransmissionModeProvider (same as MLLP).
+# Note: Mirth's built-in MLLP doesn't ship a transmissionmode.xml because
+# MLLP's Properties class lives in Mirth's core jars (already on XStream's
+# allow-list). Extension transmission modes MUST ship one.
 #
 # Usage:
 #   cd distribution && ./deploy.sh             # build + assemble extension folder
@@ -45,8 +50,9 @@ echo "[deploy] step 2/3: assembling extension folder at $EXT_DIR..."
 rm -rf "$EXT_DIR"
 mkdir -p "$EXT_DIR"
 
-# Copy plugin.xml (the only XML descriptor - same as Mirth's MLLP)
+# Copy the two XML files (root-level descriptors)
 cp "$PROJECT_DIR/plugin.xml"             "$EXT_DIR/plugin.xml"
+cp "$PROJECT_DIR/transmissionmode.xml"   "$EXT_DIR/transmissionmode.xml"
 
 # Copy the three JARs
 cp "$OUT_DIR/bitdreamit-astm-e1381-transmission-shared.jar"  "$EXT_DIR/"

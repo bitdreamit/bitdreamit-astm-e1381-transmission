@@ -91,6 +91,73 @@ with NO `ClassCastException` and NO `Error instantiating plugin` line.
 
 ---
 
+## `ForbiddenClassException: ASTME1381TransmissionModeProperties`
+
+```
+Channel "Test_astm-tcp" is invalid and cannot be edited. Original cause:
+com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties
+com.thoughtworks.xstream.security.ForbiddenClassException:
+  com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties
+    at com.thoughtworks.xstream.security.NoTypePermission.allows(NoTypePermission.java:26)
+    at com.thoughtworks.xstream.mapper.SecurityMapper.realClass(SecurityMapper.java:74)
+    ...
+    at com.mirth.connect.model.converters.ObjectXMLSerializer.deserializeList(ObjectXMLSerializer.java:421)
+```
+
+### What it means
+Mirth's XStream security framework refuses to deserialize the
+`ASTME1381TransmissionModeProperties` class. The channel was saved
+successfully (the server-side XStream had the class allowed), but when
+the Administrator UI tries to read the channel back, the client-side
+XStream rejects it. The channel becomes "invalid" and cannot be edited.
+
+### Why MLLP doesn't have this problem but we do
+Mirth's built-in MLLP plugin's `MLLPModeProperties` class lives inside
+Mirth's core jars (`mirth-server.jar` / `mirth-client-core.jar`), which
+are added to XStream's allow-list during Mirth's bootstrap. Our
+`ASTME1381TransmissionModeProperties` lives inside the extension's
+`bitdreamit-astm-e1381-transmission-shared.jar`, which is NOT on the
+default allow-list.
+
+### The fix: `transmissionmode.xml` with `<sharedClassName>`
+Mirth's `TransmissionModeController` (both server and client versions)
+scans every `$MIRTH_HOME/extensions/*/transmissionmode.xml` file at
+startup and calls `xStream.allowTypes(...)` for each `<sharedClassName>`
+declared there. That's how extension transmission modes get their
+Properties class onto XStream's allow-list.
+
+Our `transmissionmode.xml` ships with this element:
+
+```xml
+<transmissionMode>
+    ...
+    <sharedClassName>com.bitdreamit.connect.plugins.transmission.astm.shared.ASTME1381TransmissionModeProperties</sharedClassName>
+    ...
+</transmissionMode>
+```
+
+If you're seeing `ForbiddenClassException`, **the file is missing or
+stale on your Mirth server**. Re-deploy it:
+
+```bash
+sudo systemctl stop mirth-connect
+EXT_DIR=/opt/mirth-connect/extensions/bitdreamit-astm-e1381-transmission
+sudo cp /path/to/this/zip/transmissionmode.xml $EXT_DIR/transmissionmode.xml
+sudo systemctl start mirth-connect
+```
+
+After Mirth restarts, both the server-side and client-side XStream
+instances will have the Properties class allowed, and the channel
+becomes editable again.
+
+### How to clean up the invalid channel
+Once the fix above is deployed, the invalid channel will become
+editable. You don't need to delete it — just open it in the channel
+editor, make a trivial change (e.g. rename then rename back), and Save.
+This re-serializes the channel XML with the now-allowed Properties class.
+
+---
+
 ## `Cannot resolve class: ASTM E1381` in channel editor
 
 The transmission mode dropdown shows the option but selecting it produces
