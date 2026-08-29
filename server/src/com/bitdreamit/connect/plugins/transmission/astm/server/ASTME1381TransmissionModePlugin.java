@@ -29,7 +29,8 @@ public class ASTME1381TransmissionModePlugin extends TransmissionModeProvider {
         return ASTME1381Constants.PLUGIN_NAME;
     }
 
-    @Override
+    // NOTE: no @Override - getPluginPointDescription() is NOT declared as abstract
+    // in the real Mirth 4.5.2 TransmissionModeProvider base class, so @Override fails.
     public String getPluginPointDescription() {
         return "ASTM E1381-02 lower-layer transmission framing protocol for Mirth Connect. "
              + "Implements ENQ/ACK/NAK establishment, STX/ETB/ETX framing with Add-Mod-256 "
@@ -48,7 +49,8 @@ public class ASTME1381TransmissionModePlugin extends TransmissionModeProvider {
                                           batchStreamReader, props);
     }
 
-    @Override
+    // NOTE: no @Override - getDefaultProperties() is NOT declared in the real Mirth 4.5.2
+    // TransmissionModeProvider base class, so @Override fails.
     public TransmissionModeProperties getDefaultProperties() {
         return new ASTME1381TransmissionModeProperties();
     }
