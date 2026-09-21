@@ -1568,3 +1568,12 @@ structured jars (shared / server / client).
 - Initial public release of the ASTM E1381-02 transmission mode plugin.
 - ENQ/ACK establishment, STX/ETB/ETX framing, Add-Mod-256 checksum,
   0-7 frame sequencing, per-frame retry, Mirth UI settings panel.
+
+## 1.4.1 — live-server fix (tested end-to-end on Mirth Connect 4.5.2)
+
+1. **XSTREAM WHITELIST FIX (ASTME1381TransmissionModePlugin)** — Mirth Connect 4.x
+   deserializes channel XML through a security whitelist. The transmission-mode
+   properties class embedded in channel exports must be registered, otherwise every
+   imported channel is stored as an invalid placeholder ("Verify all required
+   extensions are loaded correctly"). The server plugin now registers
+   ASTME1381TransmissionModeProperties with ObjectXMLSerializer.allowTypes(...) at load.

@@ -271,7 +271,6 @@ public class ASTME1381StreamHandler extends StreamHandler {
                 sendACK();
                 transferAttemptCount = 0;
                 frameComplete = true;
-
                 // FIX (5): ETX no longer ends the session. Per ASTM E1381 the
                 // transfer ends on EOT, and analyzers like the Pentra 400 send
                 // every record as its own ETX frame inside one transmission.
