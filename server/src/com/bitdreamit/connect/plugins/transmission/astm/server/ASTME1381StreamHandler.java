@@ -399,11 +399,74 @@ public class ASTME1381StreamHandler extends StreamHandler {
      * A record longer than (maxFrameContentLength - 1) bytes is chunked:
      * intermediate chunks are ETB-terminated (no CR), the final chunk of the
      * record carries the CR and the ETX. Frames cycle FN 1-7,0 across the turn.
+     *
+     * BIDIRECTIONAL FIX (B1) - packed mode (props.framePackingMode == "packed",
+     * Erba Lachema XL style): consecutive records are PACKED into one frame up
+     * to maxFrameContentLength, records separated by CR INSIDE the frame:
+     * &lt;STX&gt;1H|...&lt;CR&gt;P|1|...&lt;CR&gt;O|1|...&lt;CR&gt;L|1|N&lt;CR&gt;&lt;ETX&gt;6F&lt;CR&gt;&lt;LF&gt;
+     * (Erba XL "ASTM Host Interface Document" v2.0, Data Transfer from LIMS to
+     * ASTM example). Only when the next record would overflow the frame is the
+     * frame closed (ETX) and a new one started. An over-long single record is
+     * still chunked with ETB exactly as in record mode.
      */
     private List<FrameChunk> chunkIntoRecordFrames(byte[] data, int maxFrameContentLength) {
         int maxData = Math.max(8, maxFrameContentLength - 1); // -1 room for the FN digit
-        List<byte[]> records = new ArrayList<byte[]>();
+        List<byte[]> records = splitIntoRecords(data);
 
+        List<FrameChunk> frames = new ArrayList<FrameChunk>();
+
+        if (props.isPackedFrames()) {
+            // --- packed mode (Erba XL / i-800 TSDWN style) ---
+            // NOTE: records from splitIntoRecords() already end with CR, and
+            // the CR is exactly the record separator inside a packed frame
+            // ("H|...<CR>P|1|...<CR>L|1|N<CR><ETX>") - so records are simply
+            // concatenated, with NO extra separator (an extra one would
+            // produce a double CR that analyzers reject).
+            ByteArrayOutputStream current = new ByteArrayOutputStream();
+            for (byte[] rec : records) {
+                if (rec.length > maxData) {
+                    // flush what we have, then chunk the over-long record
+                    if (current.size() > 0) {
+                        frames.add(new FrameChunk(current.toByteArray(), false));
+                        current.reset();
+                    }
+                    appendChunkedRecord(frames, rec, maxData);
+                    continue;
+                }
+                if (current.size() > 0 && current.size() + rec.length > maxData) {
+                    frames.add(new FrameChunk(current.toByteArray(), false));
+                    current.reset();
+                }
+                current.write(rec, 0, rec.length);
+            }
+            if (current.size() > 0) {
+                frames.add(new FrameChunk(current.toByteArray(), false));
+            }
+            if (frames.isEmpty()) {
+                frames.add(new FrameChunk(new byte[]{0x0D}, false));
+            }
+            return frames;
+        }
+
+        // --- record mode (D-10 / Pentra 400 / i-800 host examples) ---
+        for (byte[] rec : records) {
+            if (rec.length <= maxData) {
+                frames.add(new FrameChunk(rec, false)); // complete record -> ETX
+            } else {
+                appendChunkedRecord(frames, rec, maxData);
+            }
+        }
+        return frames;
+    }
+
+    /**
+     * Splits the raw payload into CR-terminated records (tolerating CRLF/LF);
+     * a trailing record without CR gets one appended, matching the manual's
+     * frames byte-for-byte.
+     */
+    private List<byte[]> splitIntoRecords(byte[] data) {
+        List<byte[]> records = new ArrayList<byte[]>();
+        int maxData = Math.max(8, props.getMaxFrameContentLength() - 1);
         int start = 0;
         for (int i = 0; i < data.length; i++) {
             if (data[i] == 0x0D) {
@@ -432,24 +495,23 @@ public class ASTME1381StreamHandler extends StreamHandler {
             withCr[0] = 0x0D;
             records.add(withCr);
         }
+        return records;
+    }
 
-        List<FrameChunk> frames = new ArrayList<FrameChunk>();
-        for (byte[] rec : records) {
-            if (rec.length <= maxData) {
-                frames.add(new FrameChunk(rec, false)); // complete record -> ETX
-            } else {
-                int offset = 0;
-                while (offset < rec.length) {
-                    int len = Math.min(maxData, rec.length - offset);
-                    byte[] chunk = new byte[len];
-                    System.arraycopy(rec, offset, chunk, 0, len);
-                    boolean lastChunk = (offset + len >= rec.length);
-                    frames.add(new FrameChunk(chunk, !lastChunk)); // ETB mid-record, ETX on final chunk
-                    offset += len;
-                }
-            }
+    /**
+     * Chunks an over-long single record: intermediate chunks are ETB-terminated
+     * (no CR), the final chunk carries the CR and the ETX.
+     */
+    private void appendChunkedRecord(List<FrameChunk> frames, byte[] rec, int maxData) {
+        int offset = 0;
+        while (offset < rec.length) {
+            int len = Math.min(maxData, rec.length - offset);
+            byte[] chunk = new byte[len];
+            System.arraycopy(rec, offset, chunk, 0, len);
+            boolean lastChunk = (offset + len >= rec.length);
+            frames.add(new FrameChunk(chunk, !lastChunk)); // ETB mid-record, ETX on final chunk
+            offset += len;
         }
-        return frames;
     }
 
     /** FIX (6): send one frame, wait ACK, retry on NAK/timeout (stock policy). */
@@ -506,6 +568,17 @@ public class ASTME1381StreamHandler extends StreamHandler {
      * FIX (6): consume the peer's leftover bytes (its EOT from the turn that
      * just finished, strays) before we transmit. Keeps a late EOT from
      * colliding with our ENQ on slow bridges. Bounded by SEND_DRAIN_MS.
+     *
+     * BIDIRECTIONAL FIX (B2) - line-contention yield: if the peer's ENQ is
+     * seen during the drain (the instrument grabbed the line first - e.g. it
+     * started its TSREQ/query transmission right while we were about to send
+     * the order), the old code just consumed the ENQ and seized the line
+     * anyway, producing a guaranteed collision on every fast query. Per
+     * ASTM E1381 the first sender owns the line: we now ACK the peer's ENQ,
+     * ABSORB its whole transmission (ACKing every frame, discarding the
+     * payload - the channel already saw the query as a received message)
+     * until its EOT, and only then start our own answer turn. Bounded by
+     * contentionTimeout so a misbehaving peer cannot block the host forever.
      */
     private void drainPeerBytesBeforeSend() throws IOException {
         long deadline = System.currentTimeMillis() + SEND_DRAIN_MS;
@@ -523,7 +596,8 @@ public class ASTME1381StreamHandler extends StreamHandler {
             if (b == props.getEndOfTransmissionByte()) {
                 logger.info("ASTM E1381: drained peer EOT before host turn");
             } else if (b == props.getEnquiryByte()) {
-                logger.warn("ASTM E1381: peer ENQ consumed during pre-send drain (peer wanted the line)");
+                logger.warn("ASTM E1381: peer ENQ during pre-send drain - peer owns the line, YIELDING (contention resolution)");
+                yieldLineToPeer();
             } else if (b == props.getStartOfFrameByte()) {
                 logger.warn("ASTM E1381: peer STX consumed during pre-send drain (unexpected frame from peer)");
             } else {
@@ -532,6 +606,100 @@ public class ASTME1381StreamHandler extends StreamHandler {
         }
         if (drained > 0) {
             logger.info("ASTM E1381: pre-send drain consumed " + drained + " byte(s)");
+        }
+    }
+
+    /**
+     * BIDIRECTIONAL FIX (B2): the peer sent ENQ first, so it is the sender and
+     * we must let it finish before we seize the line. ACK the ENQ, absorb all
+     * frames (ACK each one) until the peer's EOT, then return so the caller's
+     * establishAsSender() can take the line. Bounded by contentionTimeout
+     * (falls back to 30s when unset) and frameTimeout per frame.
+     */
+    private void yieldLineToPeer() throws IOException {
+        long deadline = System.currentTimeMillis()
+            + (props.getContentionTimeout() > 0 ? props.getContentionTimeout() : 30000L);
+        sendACK(); // peer now owns the line
+        int framesAcked = 0;
+        try {
+            while (System.currentTimeMillis() < deadline) {
+                int b = pin.read(); // blocking read; frameTimeout guards below
+                if (b == -1) {
+                    throw new IOException("Peer disconnected while yielding the line");
+                }
+                if (b == props.getEndOfTransmissionByte()) {
+                    logger.info("ASTM E1381: yielded line to peer - peer transfer complete after "
+                                + framesAcked + " frame(s), EOT received");
+                    return; // line idle again; caller proceeds with its own ENQ
+                }
+                if (b == props.getEnquiryByte()) {
+                    // a second ENQ while already yielding - ACK and keep going
+                    sendACK();
+                    continue;
+                }
+                if (b == props.getStartOfFrameByte()) {
+                    absorbPeerFrame(deadline);
+                    framesAcked++;
+                }
+                // anything else: stray byte between frames - ignore
+            }
+        } catch (IOException e) {
+            logger.error("ASTM E1381: error while yielding line to peer: " + e.getMessage());
+            throw e;
+        }
+        logger.error("ASTM E1381: contention timeout while yielding line to peer - aborting yield");
+        throw new IOException("Contention timeout: peer did not release the line within "
+                              + props.getContentionTimeout() + "ms");
+    }
+
+    /**
+     * BIDIRECTIONAL FIX (B2): absorb one peer frame (STX already consumed):
+     * read until ETX/ETB, swallow checksum + terminator bytes, then ACK.
+     * Payload is discarded - the business data was already delivered to the
+     * channel when the query arrived as a normal received message.
+     */
+    private void absorbPeerFrame(long deadline) throws IOException {
+        ByteArrayOutputStream sink = new ByteArrayOutputStream();
+        boolean frameEnded = false;
+        while (!frameEnded) {
+            if (System.currentTimeMillis() > deadline) {
+                throw new IOException("Contention timeout while absorbing peer frame");
+            }
+            int b = pin.read();
+            if (b == -1) {
+                throw new IOException("Peer disconnected mid-frame while yielding the line");
+            }
+            if (b == props.getEndOfFrameByte() || b == props.getIntermediateEndOfFrame()) {
+                // swallow the 2 checksum characters and the CR/LF terminator
+                int checksumLen = props.isUseChecksum() ? Math.max(0, props.getChecksumByteLength()) : 0;
+                for (int i = 0; i < checksumLen; i++) {
+                    int cs = pin.read();
+                    if (cs == -1) throw new IOException("Peer disconnected in checksum while yielding the line");
+                }
+                swallowTerminator();
+                frameEnded = true;
+            } else {
+                sink.write(b);
+                if (sink.size() > 65536) {
+                    throw new IOException("Peer frame exceeds 64KB while yielding the line");
+                }
+            }
+        }
+        sendACK();
+        logger.debug("ASTM E1381: yielded-line frame absorbed and ACKed (" + sink.size() + " bytes)");
+    }
+
+    /** Swallows the peer's frame terminator bytes (CR, LF, or both). */
+    private void swallowTerminator() throws IOException {
+        // at most 2 terminator bytes (CR LF); stop as soon as the next byte
+        // is not CR/LF - PushbackInputStream lets us unread it
+        for (int i = 0; i < 2; i++) {
+            int b = pin.read();
+            if (b == -1) return;
+            if (b != 0x0D && b != 0x0A) {
+                pin.unread(b);
+                return;
+            }
         }
     }
 

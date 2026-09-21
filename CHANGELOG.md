@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-09-21 - "100% bidirectional: packed frames (Erba XL) + line-contention yield"
+
+This release closes the two remaining bidirectional gaps found by auditing four
+analyzer host-connection manuals end to end: Bio-Rad D-10 (LIS1-A/LIS2-A),
+Horiba/ABX Pentra 400 (RAA023JEN), Maccura i-800 LIS Protocol V1.0.00.221210
+and Erba Lachema XL "ASTM Host Interface Document" v2.0.
+
+### Added
+- **Frame Packing Mode property (`framePackingMode`, default `record`)**:
+  - `record` - one ASTM record per frame, content ends with CR, ETX on the
+    final frame of each record. This is byte-for-byte what the D-10 query
+    examples (L20017702 section 4.5), the Pentra 400 host answer example
+    (RAA023JEN 6.2) and the i-800 host examples show; universally accepted.
+  - `packed` - consecutive records are PACKED into a single frame up to
+    Max Frame Content Length, records separated by CR inside the frame, only
+    the last frame uses ETX (intermediate frames ETB). This is the Erba XL
+    LIMS->ASTM order-download style
+    (`<STX>1H|...<CR>P|1|...<CR>O|1|...<CR>L|1|N<CR><ETX>6F<CR><LF>`) and the
+    Maccura i-800 TSDWN^REAL example.
+  - Over-long single records are chunked with ETB in both modes (E1381).
+  - Property is exposed in the channel editor descriptors, round-trips
+    through `setProperties()`/`getPurgedProperties()`, and defaults safely
+    to `record` on any unknown value.
+
+### Fixed
+- **Line-contention yield (peer ENQ during pre-send drain)**:
+  - Symptom: when the instrument seized the line with ENQ at the same moment
+    the host was about to send the order answer turn (very common right
+    after a fast TSREQ/query), the old `drainPeerBytesBeforeSend()` consumed
+    the peer's ENQ with only a WARN log and then seized the line anyway.
+    Result: guaranteed collision - the instrument streamed its query frames
+    into our session and both sides timed out.
+  - Fix (per ASTM E1381 first-sender-owns-the-line): on a peer ENQ during
+    the drain the handler now ACKs the peer, ABSORBS its complete transfer
+    (ACKing every frame, discarding payload - the query already reached the
+    channel as a received message) until the peer's EOT, and only then
+    starts the host answer turn. Bounded by `contentionTimeout`
+    (falls back to 30s) so a misbehaving peer cannot block the host.
+
 ## [1.3.3] - 2026-08-29 - "Redesign settings dialog with Mirth private UI components + fix Save bug"
 
 This release redesigns the ASTM E1381 settings dialog to use Mirth Connect's

@@ -84,6 +84,23 @@ public class ASTME1381TransmissionModeProperties extends FrameModeProperties {
     // --- Mode ---
     private boolean serverMode = true; // true=Server (listener), false=Client (sender)
 
+    /**
+     * BIDIRECTIONAL FIX (B1) - outbound frame packing strategy for the host
+     * answer turn (query download):
+     *
+     * "record"  - one ASTM record per frame, content ends with CR, final frame
+     *             of each record uses ETX. This is what the Bio-Rad D-10,
+     *             Horiba Pentra 400 and Maccura i-800 host examples show and
+     *             is universally accepted (default).
+     * "packed" - consecutive records are PACKED into a single frame up to
+     *             maxFrameContentLength, records separated by CR inside the
+     *             frame, only the last frame of the transmission uses ETX
+     *             (intermediate frames ETB). This is the Erba Lachema XL style
+     *             ("<STX>1H|...<CR>P|1|...<CR>O|1|...<CR>L|1|N<CR><ETX>6F<CR><LF>")
+     *             and the Maccura i-800 TSDWN example.
+     */
+    private String framePackingMode = "record";
+
     // --- New-style provider settings (used by ASTME1381ServerProvider / ASTME1381ClientProvider) ---
     /** First frame sequence number used when strict sequencing is enabled. */
     private int  frameNumberStart    = ASTME1381Constants.DEFAULT_FRAME_SEQUENCE_START;
@@ -163,6 +180,7 @@ public class ASTME1381TransmissionModeProperties extends FrameModeProperties {
 
         // --- Mode ---
         props.put("serverMode",             new DataTypePropertyDescriptor(serverMode, "Server Mode", "Act as server (true) or client (false).", PropertyEditorType.BOOLEAN));
+        props.put("framePackingMode",       new DataTypePropertyDescriptor(framePackingMode, "Frame Packing Mode", "Outbound frame packing for the host answer turn: 'record' = one record per frame (D-10 / Pentra 400 / i-800), 'packed' = fill frames up to Max Frame Content Length (Erba XL style).", PropertyEditorType.STRING, new Object[]{"record", "packed"}));
 
         return props;
     }
@@ -223,6 +241,16 @@ public class ASTME1381TransmissionModeProperties extends FrameModeProperties {
 
         // --- Mode ---
         if (props.has("serverMode"))             this.serverMode             = toBoolean(props.get("serverMode"));
+        if (props.has("framePackingMode"))        this.framePackingMode       = normalizePackingMode(String.valueOf(props.get("framePackingMode")));
+    }
+
+    /**
+     * BIDIRECTIONAL FIX (B1): null-safe normalization of the packing mode.
+     * Anything other than "packed" (any case) falls back to "record".
+     */
+    public static String normalizePackingMode(String mode) {
+        if (mode == null) return "record";
+        return "packed".equalsIgnoreCase(mode.trim()) ? "packed" : "record";
     }
 
     // ------------------------------------------------------------------
@@ -319,6 +347,9 @@ public class ASTME1381TransmissionModeProperties extends FrameModeProperties {
     public int getEnqTimeoutMs() { return enqTimeoutMs; }
     public int getFrameAckTimeoutMs() { return frameAckTimeoutMs; }
     public boolean isServerMode() { return serverMode; }
+    /** BIDIRECTIONAL FIX (B1): "record" (one record per frame) or "packed" (Erba XL style). */
+    public String getFramePackingMode() { return framePackingMode; }
+    public boolean isPackedFrames() { return "packed".equals(framePackingMode); }
 
     // ------------------------------------------------------------------
     // Setters
@@ -351,6 +382,7 @@ public class ASTME1381TransmissionModeProperties extends FrameModeProperties {
     public void setEnqTimeoutMs(int enqTimeoutMs) { this.enqTimeoutMs = enqTimeoutMs; }
     public void setFrameAckTimeoutMs(int frameAckTimeoutMs) { this.frameAckTimeoutMs = frameAckTimeoutMs; }
     public void setServerMode(boolean serverMode) { this.serverMode = serverMode; }
+    public void setFramePackingMode(String framePackingMode) { this.framePackingMode = normalizePackingMode(framePackingMode); }
 
     @Override
     public Map<String, Object> getPurgedProperties() {
@@ -373,6 +405,7 @@ public class ASTME1381TransmissionModeProperties extends FrameModeProperties {
         purged.put("maxEnqRetries", maxEnqRetries);
         purged.put("maxFrameRetries", maxFrameRetries);
         purged.put("serverMode", serverMode);
+        purged.put("framePackingMode", framePackingMode);
         return purged;
     }
 }
